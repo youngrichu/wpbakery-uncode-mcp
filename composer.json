@@ -1,0 +1,11 @@
+{
+  "name": "local/wpbakery-uncode-mcp",
+  "description": "MCP tools for WPBakery + Uncode",
+  "type": "wordpress-plugin",
+  "require": {
+    "php": ">=8.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^10.0"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "claude_code_command": "claude mcp add --transport http wpbakery-uncode-mcp https://your-site.com/wp-json/mcp/wpbakery-uncode-mcp-server --header \"Authorization: Basic BASE64_ENCODED_CREDENTIALS\"",
+  "claude_code_http": {
+    "mcpServers": {
+      "wpbakery-uncode-mcp": {
+        "type": "http",
+        "url": "https://your-site.com/wp-json/mcp/wpbakery-uncode-mcp-server",
+        "headers": {
+          "Authorization": "Basic BASE64_ENCODED_CREDENTIALS"
+        }
+      }
+    }
+  },
+  "claude_code_stdio_proxy": {
+    "mcpServers": {
+      "wpbakery-uncode-mcp": {
+        "type": "stdio",
+        "command": "node",
+        "args": ["/path/to/wp-content/plugins/wpbakery-uncode-mcp/bin/mcp-proxy.mjs"],
+        "env": {
+          "WP_URL": "https://your-site.com",
+          "WP_USERNAME": "admin",
+          "WP_APP_PASSWORD": "xxxx xxxx xxxx xxxx xxxx xxxx"
+        }
+      }
+    }
+  }
+}
