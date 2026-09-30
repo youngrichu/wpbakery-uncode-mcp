@@ -48,4 +48,50 @@ $summary = $tree->summarize( $tree->assign_paths( $tree->parse( $nested )['nodes
 assert( [] === $summary[0]['children'][0]['children'] );
 assert( true === $summary[0]['children'][0]['children_omitted'] );
 
+$nested_unclosed = $tree->parse( '[vc_row][vc_column_text el_id="keep-me"]Hello[/vc_column_text][vc_column_text]Hi[/vc_row]' );
+assert( [] !== $nested_unclosed['warnings'] );
+assert( 'vc_row' === $nested_unclosed['nodes'][0]['tag'] );
+assert( 'keep-me' === $nested_unclosed['nodes'][0]['children'][0]['el_id'] );
+assert( 'Hello' === $nested_unclosed['nodes'][0]['children'][0]['children'][0]['text'] );
+assert( '#text' === $nested_unclosed['nodes'][0]['children'][1]['tag'] );
+assert( str_contains( $nested_unclosed['nodes'][0]['children'][1]['text'], '[vc_column_text]' ) );
+
+$void_raw = $tree->parse( '[vc_row][vc_column][vc_empty_space height="32"][/vc_column][/vc_row]' );
+assert( 'vc_row' === $void_raw['nodes'][0]['tag'] );
+assert( 'vc_column' === $void_raw['nodes'][0]['children'][0]['tag'] );
+assert( '#text' === $void_raw['nodes'][0]['children'][0]['children'][0]['tag'] );
+assert( str_contains( $void_raw['nodes'][0]['children'][0]['children'][0]['text'], '[vc_empty_space' ) );
+
+$utf8_long = str_repeat( 'あ', 80 );
+$utf8_summary = $tree->summarize(
+	array(
+		array(
+			'tag'  => '#text',
+			'text' => $utf8_long,
+		),
+	),
+	0,
+	false
+);
+assert( 240 === strlen( $utf8_long ) );
+assert( true !== ( $utf8_summary[0]['text_truncated'] ?? false ) );
+assert( mb_check_encoding( $utf8_summary[0]['text'], 'UTF-8' ) );
+assert( false !== json_encode( $utf8_summary[0]['text'] ) );
+assert( 80 === mb_strlen( $utf8_summary[0]['text'], 'UTF-8' ) );
+
+$utf8_over = str_repeat( 'あ', 161 );
+$utf8_over_summary = $tree->summarize(
+	array(
+		array(
+			'tag'  => '#text',
+			'text' => $utf8_over,
+		),
+	),
+	0,
+	false
+);
+assert( true === ( $utf8_over_summary[0]['text_truncated'] ?? false ) );
+assert( mb_check_encoding( $utf8_over_summary[0]['text'], 'UTF-8' ) );
+assert( 161 === mb_strlen( $utf8_over_summary[0]['text'], 'UTF-8' ) );
+
 echo "content-tree-smoke: ok\n";

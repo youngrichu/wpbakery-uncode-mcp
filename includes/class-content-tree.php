@@ -70,7 +70,7 @@ class WPBakery_Uncode_MCP_Content_Tree {
 					'tag'  => self::TEXT_TAG,
 					'text' => $full ? $text : $this->truncate_text( $text ),
 				);
-				if ( ! $full && strlen( $text ) > self::TEXT_LIMIT ) {
+				if ( ! $full && mb_strlen( $text, 'UTF-8' ) > self::TEXT_LIMIT ) {
 					$item['text_truncated'] = true;
 				}
 				$out[] = $item;
@@ -137,6 +137,14 @@ class WPBakery_Uncode_MCP_Content_Tree {
 						'closed' => true,
 					);
 				}
+				if ( null !== $closer ) {
+					$flush();
+					return array(
+						'nodes'  => $nodes,
+						'end'    => $i,
+						'closed' => false,
+					);
+				}
 				$text .= substr( $content, $i, $end - $i );
 				$i     = $end;
 				continue;
@@ -165,11 +173,8 @@ class WPBakery_Uncode_MCP_Content_Tree {
 					'tag'  => self::TEXT_TAG,
 					'text' => substr( $content, $i, $inner['end'] - $i ),
 				);
-				return array(
-					'nodes'  => $nodes,
-					'end'    => $inner['end'],
-					'closed' => false,
-				);
+				$i = $inner['end'];
+				continue;
 			}
 			$nodes[] = $this->element( $open['tag'], $open['attrs'], $inner['nodes'], false );
 			$i       = $inner['end'];
@@ -350,9 +355,9 @@ class WPBakery_Uncode_MCP_Content_Tree {
 	}
 
 	private function truncate_text( string $text ): string {
-		if ( strlen( $text ) <= self::TEXT_LIMIT ) {
+		if ( mb_strlen( $text, 'UTF-8' ) <= self::TEXT_LIMIT ) {
 			return $text;
 		}
-		return substr( $text, 0, self::TEXT_LIMIT ) . '…';
+		return mb_substr( $text, 0, self::TEXT_LIMIT, 'UTF-8' ) . '…';
 	}
 }
