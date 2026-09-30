@@ -59,7 +59,7 @@ class WPBakery_Uncode_MCP_Uncode_Meta_Abilities {
 			'wpbakery-uncode-mcp/get-uncode-meta',
 			array(
 				'label'               => __( 'Get Uncode Meta', 'wpbakery-uncode-mcp' ),
-				'description'         => __( 'Reads Uncode-related post meta keys.', 'wpbakery-uncode-mcp' ),
+				'description'         => __( 'Use when reading Uncode post meta before changing page settings.', 'wpbakery-uncode-mcp' ),
 				'category'            => 'wpbakery-uncode-mcp',
 				'execute_callback'    => array( $this, 'execute_get_meta' ),
 				'permission_callback' => array( $this, 'check_edit_permission' ),
@@ -92,7 +92,7 @@ class WPBakery_Uncode_MCP_Uncode_Meta_Abilities {
 			'wpbakery-uncode-mcp/update-uncode-meta',
 			array(
 				'label'               => __( 'Update Uncode Meta', 'wpbakery-uncode-mcp' ),
-				'description'         => __( 'Updates Uncode-related post meta keys (_uncode_* / uncode_* only).', 'wpbakery-uncode-mcp' ),
+				'description'         => __( 'Use when changing Uncode post meta keys that start with uncode_ or _uncode_.', 'wpbakery-uncode-mcp' ),
 				'category'            => 'wpbakery-uncode-mcp',
 				'execute_callback'    => array( $this, 'execute_update_meta' ),
 				'permission_callback' => array( $this, 'check_edit_permission' ),

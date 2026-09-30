@@ -73,7 +73,7 @@ class WPBakery_Uncode_MCP_WPBakery_Api_Abilities {
 			'wpbakery-uncode-mcp/list-wpbakery-elements',
 			array(
 				'label'               => __( 'List WPBakery Elements', 'wpbakery-uncode-mcp' ),
-				'description'         => __( 'Lists mapped WPBakery elements.', 'wpbakery-uncode-mcp' ),
+				'description'         => __( 'Use when you need the shortcode tags available in this WPBakery install.', 'wpbakery-uncode-mcp' ),
 				'category'            => 'wpbakery-uncode-mcp',
 				'execute_callback'    => array( $this, 'execute_list_elements' ),
 				'permission_callback' => array( $this, 'check_manage_options_permission' ),
@@ -97,7 +97,7 @@ class WPBakery_Uncode_MCP_WPBakery_Api_Abilities {
 			'wpbakery-uncode-mcp/get-wpbakery-element-definition',
 			array(
 				'label'               => __( 'Get WPBakery Element Definition', 'wpbakery-uncode-mcp' ),
-				'description'         => __( 'Returns full mapped definition for one WPBakery shortcode element.', 'wpbakery-uncode-mcp' ),
+				'description'         => __( 'Use when you need the accepted parameters for one element before setting attributes.', 'wpbakery-uncode-mcp' ),
 				'category'            => 'wpbakery-uncode-mcp',
 				'execute_callback'    => array( $this, 'execute_get_element_definition' ),
 				'permission_callback' => array( $this, 'check_manage_options_permission' ),

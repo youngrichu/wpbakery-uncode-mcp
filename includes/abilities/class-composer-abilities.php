@@ -57,7 +57,7 @@ class WPBakery_Uncode_MCP_Composer_Abilities {
 			'wpbakery-uncode-mcp/compose-hero-section',
 			array(
 				'label'               => __( 'Compose Hero Section', 'wpbakery-uncode-mcp' ),
-				'description'         => __( 'Generates and inserts a WPBakery/Uncode-friendly hero section into a page.', 'wpbakery-uncode-mcp' ),
+				'description'         => __( 'Use when inserting a ready-made hero with a headline, subheadline, and button.', 'wpbakery-uncode-mcp' ),
 				'category'            => 'wpbakery-uncode-mcp',
 				'execute_callback'    => array( $this, 'execute_compose_hero_section' ),
 				'permission_callback' => array( $this, 'check_edit_permission' ),

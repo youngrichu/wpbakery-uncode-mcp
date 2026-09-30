@@ -358,13 +358,40 @@ class WPBakery_Uncode_MCP_Data {
 	}
 
 	/**
+	 * Summarize a theme option value for compact tool output.
+	 *
+	 * @param mixed $value Raw option value.
+	 * @param bool  $full When true, return the value unchanged.
+	 * @return mixed
+	 */
+	public static function summarize_theme_value( $value, bool $full ) {
+		if ( $full ) {
+			return $value;
+		}
+		if ( is_string( $value ) ) {
+			if ( strlen( $value ) <= 160 ) {
+				return $value;
+			}
+			return substr( $value, 0, 160 ) . '…';
+		}
+		if ( is_array( $value ) ) {
+			return array(
+				'type'  => 'array',
+				'count' => count( $value ),
+			);
+		}
+		return $value;
+	}
+
+	/**
 	 * Read Uncode theme options, optionally by specific keys.
 	 *
 	 * @param string $option_name Option name.
 	 * @param array  $keys Optional top-level keys to return.
+	 * @param bool   $full When true, return raw option values.
 	 * @return array|WP_Error
 	 */
-	public function get_theme_options( string $option_name = '', array $keys = array() ) {
+	public function get_theme_options( string $option_name = '', array $keys = array(), bool $full = false ) {
 		$resolved = $this->resolve_uncode_option_name( $option_name );
 		if ( is_wp_error( $resolved ) ) {
 			return $resolved;
@@ -376,9 +403,13 @@ class WPBakery_Uncode_MCP_Data {
 		}
 
 		if ( empty( $keys ) ) {
+			$out = array();
+			foreach ( $all as $key => $value ) {
+				$out[ $key ] = self::summarize_theme_value( $value, $full );
+			}
 			return array(
 				'option_name' => $resolved,
-				'options'     => $all,
+				'options'     => $out,
 			);
 		}
 
@@ -389,7 +420,7 @@ class WPBakery_Uncode_MCP_Data {
 				continue;
 			}
 			if ( array_key_exists( $key, $all ) ) {
-				$out[ $key ] = $all[ $key ];
+				$out[ $key ] = self::summarize_theme_value( $all[ $key ], $full );
 			}
 		}
 
@@ -488,9 +519,10 @@ class WPBakery_Uncode_MCP_Data {
 	 * Discover likely Uncode theme option keys by category.
 	 *
 	 * @param string $option_name Option name.
+	 * @param bool   $full When true, include raw values in previews.
 	 * @return array|WP_Error
 	 */
-	public function discover_theme_option_keys( string $option_name = '' ) {
+	public function discover_theme_option_keys( string $option_name = '', bool $full = false ) {
 		$resolved = $this->resolve_uncode_option_name( $option_name );
 		if ( is_wp_error( $resolved ) ) {
 			return $resolved;
@@ -514,8 +546,13 @@ class WPBakery_Uncode_MCP_Data {
 		$result = array(
 			'option_name' => $resolved,
 			'all_keys'    => array_values( array_keys( $current ) ),
+			'previews'    => array(),
 			'categories'  => array(),
 		);
+
+		foreach ( array_keys( $current ) as $key ) {
+			$result['previews'][ $key ] = self::summarize_theme_value( $current[ $key ], $full );
+		}
 
 		foreach ( $categories as $category => $regex ) {
 			$result['categories'][ $category ] = array();

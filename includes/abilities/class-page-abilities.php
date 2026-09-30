@@ -65,7 +65,7 @@ class WPBakery_Uncode_MCP_Page_Abilities {
 			'wpbakery-uncode-mcp/create-page',
 			array(
 				'label'               => __( 'Create WPBakery Page', 'wpbakery-uncode-mcp' ),
-				'description'         => __( 'Creates a page/post for WPBakery and optional Uncode meta.', 'wpbakery-uncode-mcp' ),
+				'description'         => __( 'Use when creating a page or post before adding WPBakery content.', 'wpbakery-uncode-mcp' ),
 				'category'            => 'wpbakery-uncode-mcp',
 				'execute_callback'    => array( $this, 'execute_create_page' ),
 				'permission_callback' => array( $this, 'check_create_permission' ),
@@ -108,7 +108,7 @@ class WPBakery_Uncode_MCP_Page_Abilities {
 			'wpbakery-uncode-mcp/get-page',
 			array(
 				'label'               => __( 'Get Page Content', 'wpbakery-uncode-mcp' ),
-				'description'         => __( 'Reads raw WPBakery shortcode content for a page/post.', 'wpbakery-uncode-mcp' ),
+				'description'         => __( 'Use when you need the page title, status, URLs, or rendered HTML.', 'wpbakery-uncode-mcp' ),
 				'category'            => 'wpbakery-uncode-mcp',
 				'execute_callback'    => array( $this, 'execute_get_page' ),
 				'permission_callback' => array( $this, 'check_edit_permission' ),

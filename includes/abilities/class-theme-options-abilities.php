@@ -96,7 +96,7 @@ class WPBakery_Uncode_MCP_Theme_Options_Abilities {
 			'wpbakery-uncode-mcp/get-theme-options',
 			array(
 				'label'               => __( 'Get Uncode Theme Options', 'wpbakery-uncode-mcp' ),
-				'description'         => __( 'Reads Uncode theme options from the options table.', 'wpbakery-uncode-mcp' ),
+				'description'         => __( 'Use when you need Uncode theme option keys or short values before editing one key.', 'wpbakery-uncode-mcp' ),
 				'category'            => 'wpbakery-uncode-mcp',
 				'execute_callback'    => array( $this, 'execute_get_theme_options' ),
 				'permission_callback' => array( $this, 'check_manage_options_permission' ),
@@ -108,6 +108,7 @@ class WPBakery_Uncode_MCP_Theme_Options_Abilities {
 							'type'  => 'array',
 							'items' => array( 'type' => 'string' ),
 						),
+						'full'        => array( 'type' => 'boolean' ),
 					),
 				),
 				'output_schema'       => array( 'type' => 'object' ),
@@ -189,7 +190,7 @@ class WPBakery_Uncode_MCP_Theme_Options_Abilities {
 			'wpbakery-uncode-mcp/discover-theme-option-keys',
 			array(
 				'label'               => __( 'Discover Theme Option Keys', 'wpbakery-uncode-mcp' ),
-				'description'         => __( 'Scans Uncode theme options and groups likely keys for CSS/JS/navigation/layout.', 'wpbakery-uncode-mcp' ),
+				'description'         => __( 'Use when you need to find which theme option keys exist for CSS, navigation, layout, type, or color.', 'wpbakery-uncode-mcp' ),
 				'category'            => 'wpbakery-uncode-mcp',
 				'execute_callback'    => array( $this, 'execute_discover_theme_option_keys' ),
 				'permission_callback' => array( $this, 'check_manage_options_permission' ),
@@ -197,6 +198,7 @@ class WPBakery_Uncode_MCP_Theme_Options_Abilities {
 					'type'       => 'object',
 					'properties' => array(
 						'option_name' => array( 'type' => 'string' ),
+						'full'        => array( 'type' => 'boolean' ),
 					),
 				),
 				'output_schema'       => array( 'type' => 'object' ),
@@ -937,8 +939,9 @@ class WPBakery_Uncode_MCP_Theme_Options_Abilities {
 	public function execute_get_theme_options( $input ) {
 		$option_name = sanitize_key( (string) ( $input['option_name'] ?? '' ) );
 		$keys        = is_array( $input['keys'] ?? null ) ? $input['keys'] : array();
+		$full        = (bool) ( $input['full'] ?? false );
 
-		return $this->data->get_theme_options( $option_name, $keys );
+		return $this->data->get_theme_options( $option_name, $keys, $full );
 	}
 
 	/**
@@ -971,7 +974,8 @@ class WPBakery_Uncode_MCP_Theme_Options_Abilities {
 	 */
 	public function execute_discover_theme_option_keys( $input ) {
 		$option_name = sanitize_key( (string) ( $input['option_name'] ?? '' ) );
-		return $this->data->discover_theme_option_keys( $option_name );
+		$full        = (bool) ( $input['full'] ?? false );
+		return $this->data->discover_theme_option_keys( $option_name, $full );
 	}
 
 	/**
