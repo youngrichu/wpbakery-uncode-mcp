@@ -154,21 +154,26 @@ class WPBakery_Uncode_MCP_Content_Tree {
 		if ( ! isset( $op['attrs'] ) || ! is_array( $op['attrs'] ) ) {
 			return $this->fail( 'invalid_op', 'set_attrs requires attrs.' );
 		}
-		$slot = $this->parent_and_index( $target['path'] );
-		$next = $this->update_children(
+		$attrs = $this->normalize_agent_attrs( $op['attrs'], true );
+		if ( ! $attrs['ok'] ) {
+			return $attrs;
+		}
+		$clean = $attrs['attrs'];
+		$slot  = $this->parent_and_index( $target['path'] );
+		$next  = $this->update_children(
 			$nodes,
 			$slot['parent'],
-			function ( array $children ) use ( $slot, $op ) {
+			function ( array $children ) use ( $slot, $clean ) {
 				$pos = $this->element_positions( $children );
 				if ( ! isset( $pos[ $slot['index'] ] ) ) {
 					return null;
 				}
 				$node = $children[ $pos[ $slot['index'] ] ];
-				foreach ( $op['attrs'] as $key => $value ) {
+				foreach ( $clean as $key => $value ) {
 					if ( null === $value ) {
 						unset( $node['attrs'][ $key ] );
 					} else {
-						$node['attrs'][ $key ] = (string) $value;
+						$node['attrs'][ $key ] = $value;
 					}
 				}
 				$el_id = (string) ( $node['attrs']['el_id'] ?? '' );
@@ -361,7 +366,7 @@ class WPBakery_Uncode_MCP_Content_Tree {
 		if ( ! isset( $op['content'] ) || ! is_string( $op['content'] ) ) {
 			return $this->fail( 'invalid_op', 'replace_content requires content.' );
 		}
-		if ( '' === $op['content'] && empty( $op['allow_empty'] ) ) {
+		if ( '' === $op['content'] && true !== ( $op['allow_empty'] ?? null ) ) {
 			return $this->fail( 'empty_replace', 'Refusing to replace the page with an empty string.' );
 		}
 		return array(
@@ -392,20 +397,97 @@ class WPBakery_Uncode_MCP_Content_Tree {
 				'nodes' => $nodes,
 			);
 		}
-		if ( '' === (string) ( $op['node']['tag'] ?? '' ) || self::TEXT_TAG === $op['node']['tag'] ) {
-			return $this->fail( 'invalid_op', 'node.tag is required.' );
+		$built = $this->agent_element_from_input( $op['node'] );
+		if ( ! $built['ok'] ) {
+			return $built;
 		}
 		return array(
 			'ok'    => true,
-			'nodes' => array(
-				$this->element(
-					(string) $op['node']['tag'],
-					is_array( $op['node']['attrs'] ?? null ) ? $op['node']['attrs'] : array(),
-					is_array( $op['node']['children'] ?? null ) ? $op['node']['children'] : array(),
-					! empty( $op['node']['self_closing'] )
-				),
-			),
+			'nodes' => array( $built['node'] ),
 		);
+	}
+
+	private function agent_element_from_input( array $input ): array {
+		$tag = $input['tag'] ?? null;
+		if ( ! is_string( $tag ) || '' === $tag || self::TEXT_TAG === $tag ) {
+			return $this->fail( 'invalid_op', 'node.tag is required.' );
+		}
+		if ( array_key_exists( 'attrs', $input ) && ! is_array( $input['attrs'] ) ) {
+			return $this->fail( 'invalid_op', 'node.attrs must be an array.' );
+		}
+		if ( array_key_exists( 'children', $input ) && ! is_array( $input['children'] ) ) {
+			return $this->fail( 'invalid_op', 'node.children must be an array.' );
+		}
+		$attrs = $this->normalize_agent_attrs( is_array( $input['attrs'] ?? null ) ? $input['attrs'] : array(), false );
+		if ( ! $attrs['ok'] ) {
+			return $attrs;
+		}
+		$children = array();
+		foreach ( is_array( $input['children'] ?? null ) ? $input['children'] : array() as $child ) {
+			$built = $this->agent_child_from_input( $child );
+			if ( ! $built['ok'] ) {
+				return $built;
+			}
+			$children[] = $built['node'];
+		}
+		return array(
+			'ok'   => true,
+			'node' => $this->element( $tag, $attrs['attrs'], $children, ! empty( $input['self_closing'] ) ),
+		);
+	}
+
+	private function agent_child_from_input( mixed $child ): array {
+		if ( ! is_array( $child ) ) {
+			return $this->fail( 'invalid_op', 'Each child must be a node.' );
+		}
+		if ( self::TEXT_TAG === ( $child['tag'] ?? null ) ) {
+			if ( ! isset( $child['text'] ) || ! is_string( $child['text'] ) ) {
+				return $this->fail( 'invalid_op', 'Text nodes require a string text.' );
+			}
+			return array(
+				'ok'   => true,
+				'node' => array(
+					'tag'  => self::TEXT_TAG,
+					'text' => $child['text'],
+				),
+			);
+		}
+		return $this->agent_element_from_input( $child );
+	}
+
+	private function normalize_agent_attrs( array $attrs, bool $allow_null ): array {
+		$out = array();
+		foreach ( $attrs as $key => $value ) {
+			$key_name = (string) $key;
+			if ( ! preg_match( '/^[A-Za-z0-9_-]+$/', $key_name ) ) {
+				return $this->fail( 'invalid_op', 'Attribute keys must match ^[A-Za-z0-9_-]+$.' );
+			}
+			if ( null === $value ) {
+				if ( ! $allow_null ) {
+					return $this->fail( 'invalid_op', 'Attribute values must be scalar.' );
+				}
+				$out[ $key_name ] = null;
+				continue;
+			}
+			if ( is_array( $value ) || is_object( $value ) || ! is_scalar( $value ) ) {
+				return $this->fail( 'invalid_op', 'Attribute values must be scalar.' );
+			}
+			$out[ $key_name ] = $this->attr_scalar_string( $value );
+		}
+		return array(
+			'ok'    => true,
+			'attrs' => $out,
+		);
+	}
+
+	private function attr_scalar_string( $value ): string {
+		if ( true === $value ) {
+			return 'true';
+		}
+		if ( false === $value ) {
+			return 'false';
+		}
+		return (string) $value;
 	}
 
 	private function resolve_target( array $nodes, array $op, bool $required ): array {

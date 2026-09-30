@@ -369,10 +369,10 @@ class WPBakery_Uncode_MCP_Data {
 			return $value;
 		}
 		if ( is_string( $value ) ) {
-			if ( strlen( $value ) <= 160 ) {
+			if ( mb_strlen( $value, 'UTF-8' ) <= 160 ) {
 				return $value;
 			}
-			return substr( $value, 0, 160 ) . '…';
+			return mb_substr( $value, 0, 160, 'UTF-8' ) . '…';
 		}
 		if ( is_array( $value ) ) {
 			return array(

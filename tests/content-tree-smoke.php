@@ -298,4 +298,82 @@ $warn_bad = $tree->apply(
 assert( true === $warn_bad['ok'] );
 assert( [] !== $warn_bad['warnings'] );
 
+$string_false = $tree->apply(
+	$base,
+	array(
+		array(
+			'op'          => 'replace_content',
+			'content'     => '',
+			'allow_empty' => 'false',
+		),
+	)
+);
+assert( false === $string_false['ok'] );
+assert( 'empty_replace' === $string_false['code'] );
+assert( false === array_key_exists( 'content', $string_false ) );
+
+$empty_ok = $tree->apply(
+	$base,
+	array(
+		array(
+			'op'          => 'replace_content',
+			'content'     => '',
+			'allow_empty' => true,
+		),
+	)
+);
+assert( true === $empty_ok['ok'] );
+assert( '' === $empty_ok['content'] );
+
+$bad_node = $tree->apply(
+	$base,
+	array(
+		array(
+			'op'    => 'insert',
+			'index' => 0,
+			'node'  => array(
+				'tag'      => 'vc_column_text',
+				'children' => array(
+					array( 'text' => 'hi' ),
+				),
+			),
+		),
+	)
+);
+assert( false === $bad_node['ok'] );
+assert( 'invalid_op' === $bad_node['code'] );
+assert( false === array_key_exists( 'content', $bad_node ) );
+
+$bad_css = $tree->apply(
+	$base,
+	array(
+		array(
+			'op'    => 'set_attrs',
+			'el_id' => 'copy',
+			'attrs' => array(
+				'css' => array( 'a' => 1 ),
+			),
+		),
+	)
+);
+assert( false === $bad_css['ok'] );
+assert( 'invalid_op' === $bad_css['code'] );
+assert( false === array_key_exists( 'content', $bad_css ) );
+
+$bad_key = $tree->apply(
+	$base,
+	array(
+		array(
+			'op'    => 'set_attrs',
+			'el_id' => 'copy',
+			'attrs' => array(
+				'data x' => '1',
+			),
+		),
+	)
+);
+assert( false === $bad_key['ok'] );
+assert( 'invalid_op' === $bad_key['code'] );
+assert( false === array_key_exists( 'content', $bad_key ) );
+
 echo "content-tree-smoke: ok\n";

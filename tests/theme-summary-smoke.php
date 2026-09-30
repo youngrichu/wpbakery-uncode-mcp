@@ -35,4 +35,10 @@ $pages = file_get_contents( __DIR__ . '/../includes/abilities/class-page-abiliti
 assert( is_string( $pages ) );
 assert( str_contains( $pages, 'Use when you need the page title, status, URLs, or rendered HTML.' ) );
 
+$marks = str_repeat( 'あ', 161 );
+$cut   = WPBakery_Uncode_MCP_Data::summarize_theme_value( $marks, false );
+assert( false !== json_encode( $cut ) );
+assert( str_ends_with( $cut, '…' ) );
+assert( 160 === mb_strlen( mb_substr( $cut, 0, -1, 'UTF-8' ), 'UTF-8' ) );
+
 echo "theme-summary-smoke: ok\n";
