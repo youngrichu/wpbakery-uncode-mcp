@@ -99,6 +99,585 @@ class WPBakery_Uncode_MCP_Content_Tree {
 		return $out;
 	}
 
+	public function apply( string $content, array $ops ): array {
+		$parsed = $this->parse( $content );
+		$nodes  = $this->assign_paths( $parsed['nodes'] );
+		$dup    = $this->first_duplicate_el_id( $nodes );
+		if ( null !== $dup ) {
+			return $this->fail( 'duplicate_el_id', 'Duplicate el_id: ' . $dup );
+		}
+		foreach ( $ops as $op ) {
+			if ( ! is_array( $op ) || ! isset( $op['op'] ) ) {
+				return $this->fail( 'invalid_op', 'Each op needs an op name.' );
+			}
+			$next = $this->apply_one( $nodes, $op );
+			if ( ! $next['ok'] ) {
+				return $next;
+			}
+			$nodes = $this->assign_paths( $next['nodes'] );
+		}
+		return array(
+			'ok'       => true,
+			'content'  => $this->serialize( $nodes ),
+			'nodes'    => $nodes,
+			'warnings' => $parsed['warnings'],
+		);
+	}
+
+	private function apply_one( array $nodes, array $op ): array {
+		switch ( (string) $op['op'] ) {
+			case 'set_attrs':
+				return $this->op_set_attrs( $nodes, $op );
+			case 'set_content':
+				return $this->op_set_content( $nodes, $op );
+			case 'insert':
+				return $this->op_insert( $nodes, $op );
+			case 'move':
+				return $this->op_move( $nodes, $op );
+			case 'delete':
+				return $this->op_delete( $nodes, $op );
+			case 'ensure_ids':
+				return $this->op_ensure_ids( $nodes, $op );
+			case 'replace_content':
+				return $this->op_replace_content( $op );
+			default:
+				return $this->fail( 'invalid_op', 'Unknown op.' );
+		}
+	}
+
+	private function op_set_attrs( array $nodes, array $op ): array {
+		$target = $this->resolve_target( $nodes, $op, true );
+		if ( ! $target['ok'] ) {
+			return $target;
+		}
+		if ( ! isset( $op['attrs'] ) || ! is_array( $op['attrs'] ) ) {
+			return $this->fail( 'invalid_op', 'set_attrs requires attrs.' );
+		}
+		$slot = $this->parent_and_index( $target['path'] );
+		$next = $this->update_children(
+			$nodes,
+			$slot['parent'],
+			function ( array $children ) use ( $slot, $op ) {
+				$pos = $this->element_positions( $children );
+				if ( ! isset( $pos[ $slot['index'] ] ) ) {
+					return null;
+				}
+				$node = $children[ $pos[ $slot['index'] ] ];
+				foreach ( $op['attrs'] as $key => $value ) {
+					if ( null === $value ) {
+						unset( $node['attrs'][ $key ] );
+					} else {
+						$node['attrs'][ $key ] = (string) $value;
+					}
+				}
+				$el_id = (string) ( $node['attrs']['el_id'] ?? '' );
+				if ( '' === $el_id ) {
+					unset( $node['el_id'] );
+				} else {
+					$node['el_id'] = $el_id;
+				}
+				$children[ $pos[ $slot['index'] ] ] = $node;
+				return $children;
+			}
+		);
+		if ( null === $next ) {
+			return $this->fail( 'unknown_path', 'Unknown path.' );
+		}
+		return array(
+			'ok'    => true,
+			'nodes' => $next,
+		);
+	}
+
+	private function op_set_content( array $nodes, array $op ): array {
+		$target = $this->resolve_target( $nodes, $op, true );
+		if ( ! $target['ok'] ) {
+			return $target;
+		}
+		if ( ! isset( $op['content'] ) || ! is_string( $op['content'] ) ) {
+			return $this->fail( 'invalid_op', 'set_content requires content.' );
+		}
+		$inner = $this->parse( $op['content'] )['nodes'];
+		$slot  = $this->parent_and_index( $target['path'] );
+		$next  = $this->update_children(
+			$nodes,
+			$slot['parent'],
+			function ( array $children ) use ( $slot, $inner ) {
+				$pos = $this->element_positions( $children );
+				if ( ! isset( $pos[ $slot['index'] ] ) ) {
+					return null;
+				}
+				$children[ $pos[ $slot['index'] ] ]['children'] = $inner;
+				return $children;
+			}
+		);
+		if ( null === $next ) {
+			return $this->fail( 'unknown_path', 'Unknown path.' );
+		}
+		return array(
+			'ok'    => true,
+			'nodes' => $next,
+		);
+	}
+
+	private function op_insert( array $nodes, array $op ): array {
+		$parent = $this->resolve_parent( $nodes, $op );
+		if ( ! $parent['ok'] ) {
+			return $parent;
+		}
+		$index = $this->read_index( $op );
+		if ( ! $index['ok'] ) {
+			return $index;
+		}
+		$incoming = $this->nodes_from_insert( $op );
+		if ( ! $incoming['ok'] ) {
+			return $incoming;
+		}
+		$next = $this->insert_nodes( $nodes, $this->path_to_ints( $parent['path'] ), $index['index'], $incoming['nodes'] );
+		if ( null === $next ) {
+			return $this->fail( 'invalid_index', 'insert index is outside the parent.' );
+		}
+		return array(
+			'ok'    => true,
+			'nodes' => $next,
+		);
+	}
+
+	private function op_delete( array $nodes, array $op ): array {
+		$target = $this->resolve_target( $nodes, $op, true );
+		if ( ! $target['ok'] ) {
+			return $target;
+		}
+		$slot = $this->parent_and_index( $target['path'] );
+		$next = $this->update_children(
+			$nodes,
+			$slot['parent'],
+			function ( array $children ) use ( $slot ) {
+				$pos = $this->element_positions( $children );
+				if ( ! isset( $pos[ $slot['index'] ] ) ) {
+					return null;
+				}
+				array_splice( $children, $pos[ $slot['index'] ], 1 );
+				return $children;
+			}
+		);
+		if ( null === $next ) {
+			return $this->fail( 'unknown_path', 'Unknown path.' );
+		}
+		return array(
+			'ok'    => true,
+			'nodes' => $next,
+		);
+	}
+
+	private function op_move( array $nodes, array $op ): array {
+		$target = $this->resolve_target( $nodes, $op, true );
+		if ( ! $target['ok'] ) {
+			return $target;
+		}
+		$parent = $this->resolve_parent( $nodes, $op );
+		if ( ! $parent['ok'] ) {
+			return $parent;
+		}
+		$index = $this->read_index( $op );
+		if ( ! $index['ok'] ) {
+			return $index;
+		}
+		if ( $this->path_is_within( $parent['path'], $target['path'] ) ) {
+			return $this->fail( 'invalid_move', 'Cannot move a node into itself.' );
+		}
+		$slot = $this->parent_and_index( $target['path'] );
+		$node = $this->node_at( $nodes, $target['path'] );
+		if ( null === $node ) {
+			return $this->fail( 'unknown_path', 'Unknown path.' );
+		}
+		$removed = $this->update_children(
+			$nodes,
+			$slot['parent'],
+			function ( array $children ) use ( $slot ) {
+				$pos = $this->element_positions( $children );
+				if ( ! isset( $pos[ $slot['index'] ] ) ) {
+					return null;
+				}
+				array_splice( $children, $pos[ $slot['index'] ], 1 );
+				return $children;
+			}
+		);
+		if ( null === $removed ) {
+			return $this->fail( 'unknown_path', 'Unknown path.' );
+		}
+		$dest = $this->shift_trail( $this->path_to_ints( $parent['path'] ), $slot['parent'], $slot['index'] );
+		$next = $this->insert_nodes( $removed, $dest, $index['index'], array( $node ) );
+		if ( null === $next ) {
+			return $this->fail( 'invalid_index', 'move index is outside the parent.' );
+		}
+		return array(
+			'ok'    => true,
+			'nodes' => $next,
+		);
+	}
+
+	private function op_ensure_ids( array $nodes, array $op ): array {
+		$target = $this->resolve_target( $nodes, $op, false );
+		if ( ! $target['ok'] ) {
+			return $target;
+		}
+		$used = array();
+		$this->collect_el_ids( $nodes, $used );
+		if ( '' === $target['path'] ) {
+			return array(
+				'ok'    => true,
+				'nodes' => $this->stamp_ids( $nodes, $used ),
+			);
+		}
+		$slot = $this->parent_and_index( $target['path'] );
+		$next = $this->update_children(
+			$nodes,
+			$slot['parent'],
+			function ( array $children ) use ( $slot, &$used ) {
+				$pos = $this->element_positions( $children );
+				if ( ! isset( $pos[ $slot['index'] ] ) ) {
+					return null;
+				}
+				$stamped = $this->stamp_ids( array( $children[ $pos[ $slot['index'] ] ] ), $used );
+				$children[ $pos[ $slot['index'] ] ] = $stamped[0];
+				return $children;
+			}
+		);
+		if ( null === $next ) {
+			return $this->fail( 'unknown_path', 'Unknown path.' );
+		}
+		return array(
+			'ok'    => true,
+			'nodes' => $next,
+		);
+	}
+
+	private function op_replace_content( array $op ): array {
+		if ( ! isset( $op['content'] ) || ! is_string( $op['content'] ) ) {
+			return $this->fail( 'invalid_op', 'replace_content requires content.' );
+		}
+		if ( '' === $op['content'] && empty( $op['allow_empty'] ) ) {
+			return $this->fail( 'empty_replace', 'Refusing to replace the page with an empty string.' );
+		}
+		return array(
+			'ok'    => true,
+			'nodes' => $this->parse( $op['content'] )['nodes'],
+		);
+	}
+
+	private function nodes_from_insert( array $op ): array {
+		$has_shortcode = isset( $op['shortcode'] ) && is_string( $op['shortcode'] );
+		$has_node      = isset( $op['node'] ) && is_array( $op['node'] );
+		if ( $has_shortcode === $has_node ) {
+			return $this->fail( 'invalid_op', 'insert requires shortcode or node, not both.' );
+		}
+		if ( $has_shortcode ) {
+			$parsed = $this->parse( $op['shortcode'] );
+			$nodes  = array();
+			foreach ( $parsed['nodes'] as $node ) {
+				if ( self::TEXT_TAG !== ( $node['tag'] ?? '' ) ) {
+					$nodes[] = $node;
+				}
+			}
+			if ( array() === $nodes ) {
+				return $this->fail( 'invalid_shortcode', 'shortcode did not contain an element.' );
+			}
+			return array(
+				'ok'    => true,
+				'nodes' => $nodes,
+			);
+		}
+		if ( '' === (string) ( $op['node']['tag'] ?? '' ) || self::TEXT_TAG === $op['node']['tag'] ) {
+			return $this->fail( 'invalid_op', 'node.tag is required.' );
+		}
+		return array(
+			'ok'    => true,
+			'nodes' => array(
+				$this->element(
+					(string) $op['node']['tag'],
+					is_array( $op['node']['attrs'] ?? null ) ? $op['node']['attrs'] : array(),
+					is_array( $op['node']['children'] ?? null ) ? $op['node']['children'] : array(),
+					! empty( $op['node']['self_closing'] )
+				),
+			),
+		);
+	}
+
+	private function resolve_target( array $nodes, array $op, bool $required ): array {
+		$has_path = isset( $op['path'] ) && '' !== (string) $op['path'];
+		$has_id   = isset( $op['el_id'] ) && '' !== (string) $op['el_id'];
+		if ( ! $has_path && ! $has_id ) {
+			if ( $required ) {
+				return $this->fail( 'missing_target', 'path or el_id is required.' );
+			}
+			return array(
+				'ok'   => true,
+				'path' => '',
+			);
+		}
+		$path    = null;
+		$id_path = null;
+		if ( $has_path ) {
+			$path = $this->normalize_path( (string) $op['path'] );
+			if ( null === $path || null === $this->node_at( $nodes, $path ) ) {
+				return $this->fail( 'unknown_path', 'Unknown path.' );
+			}
+		}
+		if ( $has_id ) {
+			$found = $this->paths_for_el_id( $nodes, (string) $op['el_id'], '' );
+			if ( array() === $found ) {
+				return $this->fail( 'unknown_el_id', 'Unknown el_id.' );
+			}
+			if ( count( $found ) > 1 ) {
+				return $this->fail( 'duplicate_el_id', 'Duplicate el_id.' );
+			}
+			$id_path = $found[0];
+		}
+		if ( null !== $path && null !== $id_path && $path !== $id_path ) {
+			return $this->fail( 'target_mismatch', 'path and el_id point at different nodes.' );
+		}
+		return array(
+			'ok'   => true,
+			'path' => $path ?? $id_path,
+		);
+	}
+
+	private function resolve_parent( array $nodes, array $op ): array {
+		$synthetic = array();
+		if ( array_key_exists( 'parent_path', $op ) ) {
+			$synthetic['path'] = (string) $op['parent_path'];
+		}
+		if ( isset( $op['parent_el_id'] ) ) {
+			$synthetic['el_id'] = (string) $op['parent_el_id'];
+		}
+		if ( array() === $synthetic ) {
+			return array(
+				'ok'   => true,
+				'path' => '',
+			);
+		}
+		if ( isset( $synthetic['path'] ) && '' === $synthetic['path'] && empty( $synthetic['el_id'] ) ) {
+			return array(
+				'ok'   => true,
+				'path' => '',
+			);
+		}
+		return $this->resolve_target( $nodes, $synthetic, true );
+	}
+
+	private function insert_nodes( array $nodes, array $parent_trail, int $index, array $incoming ): ?array {
+		return $this->update_children(
+			$nodes,
+			$parent_trail,
+			function ( array $children ) use ( $index, $incoming ) {
+				$pos = $this->element_positions( $children );
+				if ( $index < 0 || $index > count( $pos ) ) {
+					return null;
+				}
+				$at = $index === count( $pos ) ? count( $children ) : $pos[ $index ];
+				array_splice( $children, $at, 0, $incoming );
+				return $children;
+			}
+		);
+	}
+
+	private function update_children( array $nodes, array $parent_trail, callable $fn ): ?array {
+		if ( array() === $parent_trail ) {
+			$next = $fn( $nodes );
+			return is_array( $next ) ? $next : null;
+		}
+		$want = array_shift( $parent_trail );
+		$seen = 0;
+		foreach ( $nodes as $i => $node ) {
+			if ( self::TEXT_TAG === ( $node['tag'] ?? '' ) ) {
+				continue;
+			}
+			if ( $seen === $want ) {
+				$updated = $this->update_children( $node['children'] ?? array(), $parent_trail, $fn );
+				if ( null === $updated ) {
+					return null;
+				}
+				$node['children'] = $updated;
+				$nodes[ $i ]      = $node;
+				return $nodes;
+			}
+			++$seen;
+		}
+		return null;
+	}
+
+	private function node_at( array $nodes, string $path ): ?array {
+		$trail = $this->path_to_ints( $path );
+		$list  = $nodes;
+		$last  = array_pop( $trail );
+		if ( null === $last ) {
+			return null;
+		}
+		foreach ( $trail as $element_index ) {
+			$pos = $this->element_positions( $list );
+			if ( ! isset( $pos[ $element_index ] ) ) {
+				return null;
+			}
+			$list = $list[ $pos[ $element_index ] ]['children'] ?? array();
+		}
+		$pos = $this->element_positions( $list );
+		if ( ! isset( $pos[ $last ] ) ) {
+			return null;
+		}
+		return $list[ $pos[ $last ] ];
+	}
+
+	private function parent_and_index( string $path ): array {
+		$parts = $this->path_to_ints( $path );
+		$index = array_pop( $parts );
+		return array(
+			'parent' => $parts,
+			'index'  => (int) $index,
+		);
+	}
+
+	private function path_to_ints( string $path ): array {
+		if ( '' === $path ) {
+			return array();
+		}
+		return array_map( 'intval', explode( '/', $path ) );
+	}
+
+	private function normalize_path( string $path ): ?string {
+		if ( ! preg_match( '/^\d+(?:\/\d+)*$/', $path ) ) {
+			return null;
+		}
+		return $path;
+	}
+
+	private function element_positions( array $nodes ): array {
+		$pos = array();
+		foreach ( $nodes as $index => $node ) {
+			if ( self::TEXT_TAG !== ( $node['tag'] ?? '' ) ) {
+				$pos[] = $index;
+			}
+		}
+		return $pos;
+	}
+
+	private function path_is_within( string $path, string $ancestor ): bool {
+		if ( '' === $ancestor ) {
+			return true;
+		}
+		return $path === $ancestor || str_starts_with( $path, $ancestor . '/' );
+	}
+
+	private function shift_trail( array $dest, array $source_parent, int $source_index ): array {
+		$prefix = count( $source_parent );
+		if ( count( $dest ) <= $prefix ) {
+			return $dest;
+		}
+		for ( $i = 0; $i < $prefix; $i++ ) {
+			if ( $dest[ $i ] !== $source_parent[ $i ] ) {
+				return $dest;
+			}
+		}
+		if ( $dest[ $prefix ] > $source_index ) {
+			--$dest[ $prefix ];
+		}
+		return $dest;
+	}
+
+	private function read_index( array $op ): array {
+		if ( ! isset( $op['index'] ) || ! is_int( $op['index'] ) ) {
+			return $this->fail( 'invalid_index', 'index must be an integer.' );
+		}
+		if ( $op['index'] < 0 ) {
+			return $this->fail( 'invalid_index', 'index must be zero or greater.' );
+		}
+		return array(
+			'ok'    => true,
+			'index' => $op['index'],
+		);
+	}
+
+	private function paths_for_el_id( array $nodes, string $el_id, string $prefix ): array {
+		$found         = array();
+		$element_index = 0;
+		foreach ( $nodes as $node ) {
+			if ( self::TEXT_TAG === ( $node['tag'] ?? '' ) ) {
+				continue;
+			}
+			$path = '' === $prefix ? (string) $element_index : $prefix . '/' . $element_index;
+			++$element_index;
+			if ( (string) ( $node['el_id'] ?? $node['attrs']['el_id'] ?? '' ) === $el_id ) {
+				$found[] = $path;
+			}
+			$found = array_merge( $found, $this->paths_for_el_id( $node['children'] ?? array(), $el_id, $path ) );
+		}
+		return $found;
+	}
+
+	private function first_duplicate_el_id( array $nodes ): ?string {
+		$seen = array();
+		$dups = array();
+		$this->find_duplicate_ids( $nodes, $seen, $dups );
+		return $dups[0] ?? null;
+	}
+
+	private function find_duplicate_ids( array $nodes, array &$seen, array &$dups ): void {
+		foreach ( $nodes as $node ) {
+			if ( self::TEXT_TAG === ( $node['tag'] ?? '' ) ) {
+				continue;
+			}
+			$id = (string) ( $node['el_id'] ?? $node['attrs']['el_id'] ?? '' );
+			if ( '' !== $id ) {
+				if ( isset( $seen[ $id ] ) ) {
+					$dups[] = $id;
+				}
+				$seen[ $id ] = true;
+			}
+			$this->find_duplicate_ids( $node['children'] ?? array(), $seen, $dups );
+		}
+	}
+
+	private function collect_el_ids( array $nodes, array &$used ): void {
+		foreach ( $nodes as $node ) {
+			if ( self::TEXT_TAG === ( $node['tag'] ?? '' ) ) {
+				continue;
+			}
+			$id = (string) ( $node['attrs']['el_id'] ?? '' );
+			if ( '' !== $id ) {
+				$used[ $id ] = true;
+			}
+			$this->collect_el_ids( $node['children'] ?? array(), $used );
+		}
+	}
+
+	private function stamp_ids( array $nodes, array &$used ): array {
+		foreach ( $nodes as $i => $node ) {
+			if ( self::TEXT_TAG === ( $node['tag'] ?? '' ) ) {
+				continue;
+			}
+			$existing = (string) ( $node['attrs']['el_id'] ?? '' );
+			if ( '' === $existing ) {
+				do {
+					$id = 'mcp-' . bin2hex( random_bytes( 4 ) );
+				} while ( isset( $used[ $id ] ) );
+				$used[ $id ]               = true;
+				$node['attrs']['el_id']    = $id;
+				$node['el_id']             = $id;
+			}
+			$node['children'] = $this->stamp_ids( $node['children'] ?? array(), $used );
+			$nodes[ $i ]      = $node;
+		}
+		return $nodes;
+	}
+
+	private function fail( string $code, string $message ): array {
+		return array(
+			'ok'      => false,
+			'code'    => $code,
+			'message' => $message,
+		);
+	}
+
 	private function parse_range( string $content, int $offset, ?string $closer, array $ancestors, array &$warnings ): array {
 		$nodes = array();
 		$len   = strlen( $content );
