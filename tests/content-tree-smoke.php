@@ -233,4 +233,69 @@ $replaced = $tree->apply(
 assert( true === $replaced['ok'] );
 assert( str_contains( $replaced['content'], '[vc_empty_space /]' ) );
 
+$void_set = $tree->apply(
+	'[vc_empty_space /]',
+	array(
+		array(
+			'op'      => 'set_content',
+			'path'    => '0',
+			'content' => 'Hi',
+		),
+	)
+);
+assert( true === $void_set['ok'] );
+assert( str_contains( $void_set['content'], 'Hi' ) );
+assert( false === str_contains( $void_set['content'], '[vc_empty_space /]' ) );
+
+$dup_attr = $tree->apply(
+	'[vc_row el_id="a"][/vc_row][vc_row el_id="b"][/vc_row]',
+	array(
+		array(
+			'op'    => 'set_attrs',
+			'el_id' => 'b',
+			'attrs' => array(
+				'el_id' => 'a',
+			),
+		),
+	)
+);
+assert( false === $dup_attr['ok'] );
+assert( 'duplicate_el_id' === $dup_attr['code'] );
+assert( false === array_key_exists( 'content', $dup_attr ) );
+
+$dup_repair = $tree->apply(
+	'[vc_row el_id="x"][/vc_row][vc_row el_id="x"][/vc_row]',
+	array(
+		array(
+			'op'      => 'replace_content',
+			'content' => '[vc_empty_space /]',
+		),
+	)
+);
+assert( true === $dup_repair['ok'] );
+
+$warn_clean = $tree->apply(
+	'[vc_row]',
+	array(
+		array(
+			'op'      => 'replace_content',
+			'content' => '[vc_empty_space /]',
+		),
+	)
+);
+assert( true === $warn_clean['ok'] );
+assert( [] === $warn_clean['warnings'] );
+
+$warn_bad = $tree->apply(
+	'[vc_row el_id="ok"][/vc_row]',
+	array(
+		array(
+			'op'      => 'replace_content',
+			'content' => '[vc_row]',
+		),
+	)
+);
+assert( true === $warn_bad['ok'] );
+assert( [] !== $warn_bad['warnings'] );
+
 echo "content-tree-smoke: ok\n";

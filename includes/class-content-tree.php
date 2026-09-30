@@ -102,10 +102,6 @@ class WPBakery_Uncode_MCP_Content_Tree {
 	public function apply( string $content, array $ops ): array {
 		$parsed = $this->parse( $content );
 		$nodes  = $this->assign_paths( $parsed['nodes'] );
-		$dup    = $this->first_duplicate_el_id( $nodes );
-		if ( null !== $dup ) {
-			return $this->fail( 'duplicate_el_id', 'Duplicate el_id: ' . $dup );
-		}
 		foreach ( $ops as $op ) {
 			if ( ! is_array( $op ) || ! isset( $op['op'] ) ) {
 				return $this->fail( 'invalid_op', 'Each op needs an op name.' );
@@ -116,11 +112,16 @@ class WPBakery_Uncode_MCP_Content_Tree {
 			}
 			$nodes = $this->assign_paths( $next['nodes'] );
 		}
+		$dup = $this->first_duplicate_el_id( $nodes );
+		if ( null !== $dup ) {
+			return $this->fail( 'duplicate_el_id', 'Duplicate el_id: ' . $dup );
+		}
+		$serialized = $this->serialize( $nodes );
 		return array(
 			'ok'       => true,
-			'content'  => $this->serialize( $nodes ),
+			'content'  => $serialized,
 			'nodes'    => $nodes,
-			'warnings' => $parsed['warnings'],
+			'warnings' => $this->parse( $serialized )['warnings'],
 		);
 	}
 
@@ -207,7 +208,10 @@ class WPBakery_Uncode_MCP_Content_Tree {
 				if ( ! isset( $pos[ $slot['index'] ] ) ) {
 					return null;
 				}
-				$children[ $pos[ $slot['index'] ] ]['children'] = $inner;
+				$node                 = $children[ $pos[ $slot['index'] ] ];
+				$node['children']     = $inner;
+				$node['self_closing'] = false;
+				$children[ $pos[ $slot['index'] ] ] = $node;
 				return $children;
 			}
 		);
