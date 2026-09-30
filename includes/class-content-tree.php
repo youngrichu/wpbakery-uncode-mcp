@@ -15,7 +15,7 @@ class WPBakery_Uncode_MCP_Content_Tree {
 
 	public function parse( string $content ): array {
 		$warnings = array();
-		$result   = $this->parse_range( $content, 0, null, $warnings );
+		$result   = $this->parse_range( $content, 0, null, array(), $warnings );
 		return array(
 			'nodes'    => $result['nodes'],
 			'warnings' => $warnings,
@@ -99,7 +99,7 @@ class WPBakery_Uncode_MCP_Content_Tree {
 		return $out;
 	}
 
-	private function parse_range( string $content, int $offset, ?string $closer, array &$warnings ): array {
+	private function parse_range( string $content, int $offset, ?string $closer, array $ancestors, array &$warnings ): array {
 		$nodes = array();
 		$len   = strlen( $content );
 		$text  = '';
@@ -137,13 +137,18 @@ class WPBakery_Uncode_MCP_Content_Tree {
 						'closed' => true,
 					);
 				}
-				if ( null !== $closer ) {
+				if ( null !== $closer && in_array( $close['tag'], $ancestors, true ) ) {
 					$flush();
 					return array(
 						'nodes'  => $nodes,
 						'end'    => $i,
 						'closed' => false,
 					);
+				}
+				if ( null !== $closer ) {
+					$text .= substr( $content, $i, $end - $i );
+					$i     = $end;
+					continue;
 				}
 				$text .= substr( $content, $i, $end - $i );
 				$i     = $end;
@@ -162,7 +167,8 @@ class WPBakery_Uncode_MCP_Content_Tree {
 				$i       = $open['end'];
 				continue;
 			}
-			$inner = $this->parse_range( $content, $open['end'], $open['tag'], $warnings );
+			$child_ancestors = null === $closer ? $ancestors : array_merge( $ancestors, array( $closer ) );
+			$inner           = $this->parse_range( $content, $open['end'], $open['tag'], $child_ancestors, $warnings );
 			if ( empty( $inner['closed'] ) ) {
 				$warnings[] = array(
 					'tag'     => $open['tag'],
@@ -173,6 +179,22 @@ class WPBakery_Uncode_MCP_Content_Tree {
 					'tag'  => self::TEXT_TAG,
 					'text' => substr( $content, $i, $inner['end'] - $i ),
 				);
+				$stop_tag = $this->peek_closer_tag( $content, $inner['end'] );
+				if ( null === $stop_tag ) {
+					$i = $inner['end'];
+					continue;
+				}
+				if ( null !== $closer && $stop_tag === $closer ) {
+					$i = $inner['end'];
+					continue;
+				}
+				if ( in_array( $stop_tag, $ancestors, true ) ) {
+					return array(
+						'nodes'  => $nodes,
+						'end'    => $inner['end'],
+						'closed' => false,
+					);
+				}
 				$i = $inner['end'];
 				continue;
 			}
@@ -242,6 +264,24 @@ class WPBakery_Uncode_MCP_Content_Tree {
 			$j                     = $attr['end'];
 		}
 		return null;
+	}
+
+	private function peek_closer_tag( string $content, int $offset ): ?string {
+		if ( $offset >= strlen( $content ) || '[' !== $content[ $offset ] ) {
+			return null;
+		}
+		if ( $offset + 1 >= strlen( $content ) || '/' !== $content[ $offset + 1 ] ) {
+			return null;
+		}
+		$close = $this->read_tag_name( $content, $offset + 2 );
+		if ( null === $close ) {
+			return null;
+		}
+		$end = $this->closing_bracket( $content, $close['end'] );
+		if ( null === $end ) {
+			return null;
+		}
+		return $close['tag'];
 	}
 
 	private function read_tag_name( string $content, int $offset ): ?array {

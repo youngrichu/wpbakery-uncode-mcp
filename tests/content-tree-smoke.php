@@ -56,6 +56,18 @@ assert( 'Hello' === $nested_unclosed['nodes'][0]['children'][0]['children'][0]['
 assert( '#text' === $nested_unclosed['nodes'][0]['children'][1]['tag'] );
 assert( str_contains( $nested_unclosed['nodes'][0]['children'][1]['text'], '[vc_column_text]' ) );
 
+$stray_close = $tree->parse( '[vc_row][vc_column_text]Hi[/div][/vc_column_text][/vc_row]' );
+assert( 'vc_row' === $stray_close['nodes'][0]['tag'] );
+assert( 'vc_column_text' === $stray_close['nodes'][0]['children'][0]['tag'] );
+$inner_text = '';
+foreach ( $stray_close['nodes'][0]['children'][0]['children'] as $child ) {
+	if ( '#text' === ( $child['tag'] ?? '' ) ) {
+		$inner_text .= (string) ( $child['text'] ?? '' );
+	}
+}
+assert( str_contains( $inner_text, 'Hi' ) );
+assert( str_contains( $inner_text, '[/div]' ) );
+
 $void_raw = $tree->parse( '[vc_row][vc_column][vc_empty_space height="32"][/vc_column][/vc_row]' );
 assert( 'vc_row' === $void_raw['nodes'][0]['tag'] );
 assert( 'vc_column' === $void_raw['nodes'][0]['children'][0]['tag'] );
