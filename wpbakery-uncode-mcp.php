@@ -94,6 +94,8 @@ function wpbakery_uncode_mcp_register_ability( string $name, array $args ) {
 	return wp_register_ability( $name, $args );
 }
 
+require_once WPBAKERY_UNCODE_MCP_DIR . 'includes/class-tool-catalog.php';
+
 /**
  * Whether an MCP tool is enabled via admin settings.
  *
@@ -101,11 +103,7 @@ function wpbakery_uncode_mcp_register_ability( string $name, array $args ) {
  * @return bool
  */
 function wpbakery_uncode_mcp_is_tool_enabled( string $ability_name ): bool {
-	$disabled = get_option( WPBAKERY_UNCODE_MCP_DISABLED_TOOLS_OPTION, array() );
-	if ( ! is_array( $disabled ) ) {
-		$disabled = array();
-	}
-	return ! in_array( $ability_name, $disabled, true );
+	return ! in_array( $ability_name, wpbakery_uncode_mcp_get_disabled_tools(), true );
 }
 
 /**

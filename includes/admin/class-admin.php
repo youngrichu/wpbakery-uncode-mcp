@@ -9,6 +9,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once dirname( __DIR__ ) . '/class-tool-catalog.php';
+
 class WPBakery_Uncode_MCP_Admin {
 	const PAGE_SLUG = 'wpbakery-uncode-mcp';
 	const SETTINGS_GROUP = 'wpbakery_uncode_mcp_settings';
@@ -74,10 +76,7 @@ class WPBakery_Uncode_MCP_Admin {
 		}
 
 		$tab      = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'connection'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$disabled = get_option( WPBAKERY_UNCODE_MCP_DISABLED_TOOLS_OPTION, array() );
-		if ( ! is_array( $disabled ) ) {
-			$disabled = array();
-		}
+		$disabled = wpbakery_uncode_mcp_get_disabled_tools();
 		$endpoint         = rest_url( 'mcp/wpbakery-uncode-mcp-server' );
 		$has_adapter      = class_exists( '\WP\MCP\Core\McpAdapter' );
 		$has_abilities    = function_exists( 'wp_register_ability' );
