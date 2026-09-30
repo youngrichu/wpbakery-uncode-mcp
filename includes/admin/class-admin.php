@@ -282,6 +282,8 @@ class WPBakery_Uncode_MCP_Admin {
 	private function get_tool_groups(): array {
 		return array(
 			'Pages & Shortcodes' => array(
+				'wpbakery-uncode-mcp/get-content-tree',
+				'wpbakery-uncode-mcp/apply-content-ops',
 				'wpbakery-uncode-mcp/create-page',
 				'wpbakery-uncode-mcp/get-page',
 				'wpbakery-uncode-mcp/update-page-content',

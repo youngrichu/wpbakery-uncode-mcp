@@ -197,6 +197,7 @@ function wpbakery_uncode_mcp_init(): void {
 		return;
 	}
 
+	require_once WPBAKERY_UNCODE_MCP_DIR . 'includes/class-content-tree.php';
 	require_once WPBAKERY_UNCODE_MCP_DIR . 'includes/class-data.php';
 	require_once WPBAKERY_UNCODE_MCP_DIR . 'includes/class-shortcode-service.php';
 	require_once WPBAKERY_UNCODE_MCP_DIR . 'includes/abilities/class-page-abilities.php';
@@ -205,6 +206,7 @@ function wpbakery_uncode_mcp_init(): void {
 	require_once WPBAKERY_UNCODE_MCP_DIR . 'includes/abilities/class-uncode-meta-abilities.php';
 	require_once WPBAKERY_UNCODE_MCP_DIR . 'includes/abilities/class-theme-options-abilities.php';
 	require_once WPBAKERY_UNCODE_MCP_DIR . 'includes/abilities/class-composer-abilities.php';
+	require_once WPBAKERY_UNCODE_MCP_DIR . 'includes/abilities/class-content-abilities.php';
 	require_once WPBAKERY_UNCODE_MCP_DIR . 'includes/abilities/class-ability-registrar.php';
 	require_once WPBAKERY_UNCODE_MCP_DIR . 'includes/class-plugin.php';
 	if ( is_admin() ) {

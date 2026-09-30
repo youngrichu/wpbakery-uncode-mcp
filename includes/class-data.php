@@ -11,6 +11,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class WPBakery_Uncode_MCP_Data {
 	/**
+	 * @var WPBakery_Uncode_MCP_Content_Tree
+	 */
+	private $content_tree;
+
+	public function __construct() {
+		$this->content_tree = new WPBakery_Uncode_MCP_Content_Tree();
+	}
+
+	/**
 	 * Fetch page payload with content and optional rendered HTML.
 	 *
 	 * @param int  $post_id Post ID.
@@ -41,6 +50,79 @@ class WPBakery_Uncode_MCP_Data {
 		}
 
 		return $payload;
+	}
+
+	/**
+	 * Read a page as a nested shortcode tree.
+	 *
+	 * @param int    $post_id Post ID.
+	 * @param string $path Optional element path. Empty returns the whole tree.
+	 * @param int    $depth Summary depth.
+	 * @param bool   $full Whether to include full inner text.
+	 * @return array|WP_Error
+	 */
+	public function get_content_tree( int $post_id, string $path = '', int $depth = 3, bool $full = false ) {
+		$post = get_post( $post_id );
+		if ( ! $post || 'revision' === $post->post_type ) {
+			return new WP_Error( 'invalid_post', __( 'Post not found.', 'wpbakery-uncode-mcp' ) );
+		}
+		$parsed = $this->content_tree->parse( (string) $post->post_content );
+		$nodes  = $this->content_tree->assign_paths( $parsed['nodes'] );
+		if ( '' !== $path ) {
+			$found = $this->content_tree->node_at( $nodes, $path );
+			if ( null === $found || (string) ( $found['path'] ?? '' ) !== $path ) {
+				return new WP_Error( 'unknown_path', __( 'Unknown path.', 'wpbakery-uncode-mcp' ) );
+			}
+			$nodes = array( $found );
+		}
+		return array(
+			'post_id'  => $post_id,
+			'tree'     => $this->content_tree->summarize( $nodes, $depth, $full ),
+			'warnings' => $parsed['warnings'],
+		);
+	}
+
+	/**
+	 * Apply ordered content operations and save unless this is a dry run.
+	 *
+	 * @param int   $post_id Post ID.
+	 * @param array $ops Operations.
+	 * @param bool  $dry_run When true, skip saving.
+	 * @return array|WP_Error
+	 */
+	public function apply_content_ops( int $post_id, array $ops, bool $dry_run = false ) {
+		$post = get_post( $post_id );
+		if ( ! $post || 'revision' === $post->post_type ) {
+			return new WP_Error( 'invalid_post', __( 'Post not found.', 'wpbakery-uncode-mcp' ) );
+		}
+		$result = $this->content_tree->apply( (string) $post->post_content, $ops );
+		if ( ! $result['ok'] ) {
+			return new WP_Error( $result['code'], $result['message'] );
+		}
+		if ( ! $dry_run ) {
+			$stored = wpbakery_uncode_mcp_content_for_storage(
+				$result['content'],
+				current_user_can( 'unfiltered_html' )
+			);
+			$saved  = wp_update_post(
+				array(
+					'ID'           => $post_id,
+					'post_content' => $stored,
+				),
+				true
+			);
+			if ( is_wp_error( $saved ) ) {
+				return $saved;
+			}
+		}
+		return array(
+			'success'  => true,
+			'dry_run'  => $dry_run,
+			'post_id'  => $post_id,
+			'content'  => $result['content'],
+			'tree'     => $this->content_tree->summarize( $result['nodes'], 3, false ),
+			'warnings' => $result['warnings'],
+		);
 	}
 
 	/**

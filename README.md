@@ -109,6 +109,11 @@ Claude Desktop support for remote MCP servers may differ from Claude Code. This 
 
 ## MCP Tools
 
+- `wpbakery-uncode-mcp/get-content-tree`
+- `wpbakery-uncode-mcp/apply-content-ops`
+
+A fresh install leaves `build-shortcode`, `insert-shortcode`, `remove-shortcode`, `list-shortcodes`, `update-page-content`, `get-wpbakery-inner-api-status`, `update-wpbakery-element-param`, `set-wpbakery-element-visibility`, and `set-wpbakery-output-debug` off until they are enabled on the Tools tab.
+
 - `wpbakery-uncode-mcp/create-page`
 - `wpbakery-uncode-mcp/get-page`
 - `wpbakery-uncode-mcp/update-page-content`

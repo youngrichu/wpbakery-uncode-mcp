@@ -42,6 +42,10 @@ class WPBakery_Uncode_MCP_Ability_Registrar {
 		$pages->register();
 		$this->ability_names = array_merge( $this->ability_names, $pages->get_ability_names() );
 
+		$content = new WPBakery_Uncode_MCP_Content_Abilities( $this->data );
+		$content->register();
+		$this->ability_names = array_merge( $this->ability_names, $content->get_ability_names() );
+
 		$shortcodes = new WPBakery_Uncode_MCP_Shortcode_Abilities( $this->data, $this->shortcode_service );
 		$shortcodes->register();
 		$this->ability_names = array_merge( $this->ability_names, $shortcodes->get_ability_names() );

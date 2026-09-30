@@ -511,7 +511,7 @@ class WPBakery_Uncode_MCP_Content_Tree {
 		return null;
 	}
 
-	private function node_at( array $nodes, string $path ): ?array {
+	public function node_at( array $nodes, string $path ): ?array {
 		$trail = $this->path_to_ints( $path );
 		$list  = $nodes;
 		$last  = array_pop( $trail );
@@ -983,4 +983,18 @@ class WPBakery_Uncode_MCP_Content_Tree {
 		}
 		return mb_substr( $text, 0, self::TEXT_LIMIT, 'UTF-8' ) . '…';
 	}
+}
+
+/**
+ * Prepare serialized shortcodes for post storage.
+ *
+ * @param string $content Serialized shortcodes.
+ * @param bool   $unfiltered Whether the user may store unfiltered HTML.
+ * @return string
+ */
+function wpbakery_uncode_mcp_content_for_storage( string $content, bool $unfiltered ): string {
+	if ( $unfiltered ) {
+		return $content;
+	}
+	return wp_kses_post( $content );
 }
