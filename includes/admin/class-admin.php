@@ -83,7 +83,8 @@ class WPBakery_Uncode_MCP_Admin {
 		$has_abilities    = function_exists( 'wp_register_ability' );
 		$has_wpbakery     = defined( 'WPB_VC_VERSION' );
 		$profile_password = admin_url( 'profile.php#application-passwords-section' );
-		$is_https         = 0 === strpos( site_url(), 'https://' );
+		$is_https              = 0 === strpos( site_url(), 'https://' );
+		$has_server_basic_auth = isset( $_SERVER['PHP_AUTH_USER'] ) || isset( $_SERVER['PHP_AUTH_PW'] );
 		?>
 		<div class="wrap wpbakery-uncode-mcp-wrap">
 			<h1><?php esc_html_e( 'MCP Tools for WPBakery + Uncode', 'wpbakery-uncode-mcp' ); ?></h1>
@@ -166,15 +167,43 @@ class WPBakery_Uncode_MCP_Admin {
 
 				<div class="card" style="padding:16px;margin-top:12px;">
 					<h2><?php esc_html_e( 'Generate Connection Configs', 'wpbakery-uncode-mcp' ); ?></h2>
+					
+					<?php if ( $has_server_basic_auth ) : ?>
+						<div class="wpbakery-uncode-mcp-warning" style="margin-top: 0; margin-bottom: 16px;">
+							<strong><?php esc_html_e( 'Server-Level Basic Auth Detected (e.g. WP Engine Staging Password Protection).', 'wpbakery-uncode-mcp' ); ?></strong><br>
+							<?php esc_html_e( 'To connect successfully, we will generate a configuration containing BOTH the server staging credentials and the WordPress Application Password.', 'wpbakery-uncode-mcp' ); ?>
+						</div>
+					<?php endif; ?>
+
 					<div class="wpbakery-uncode-mcp-kv">
-						<label for="wpbakery-mcp-username"><?php esc_html_e( 'Username', 'wpbakery-uncode-mcp' ); ?></label>
+						<label for="wpbakery-mcp-username"><?php esc_html_e( 'WP Username', 'wpbakery-uncode-mcp' ); ?></label>
 						<input id="wpbakery-mcp-username" type="text" value="<?php echo esc_attr( wp_get_current_user()->user_login ); ?>" />
-						<label for="wpbakery-mcp-password"><?php esc_html_e( 'Application Password', 'wpbakery-uncode-mcp' ); ?></label>
+						
+						<label for="wpbakery-mcp-password"><?php esc_html_e( 'WP Application Password', 'wpbakery-uncode-mcp' ); ?></label>
 						<div class="wpbakery-uncode-mcp-password-row">
 							<input id="wpbakery-mcp-password" type="password" placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" autocomplete="off" spellcheck="false" />
 							<button type="button" class="button" id="wpbakery-mcp-toggle-password" aria-controls="wpbakery-mcp-password" aria-pressed="false"><?php esc_html_e( 'Show', 'wpbakery-uncode-mcp' ); ?></button>
 						</div>
 					</div>
+
+					<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #eee;">
+						<label>
+							<input type="checkbox" id="wpbakery-mcp-use-server-auth" <?php checked( $has_server_basic_auth ); ?> />
+							<strong><?php esc_html_e( 'Include Server-Level Basic Auth (e.g. WP Engine Staging Password)', 'wpbakery-uncode-mcp' ); ?></strong>
+						</label>
+					</div>
+
+					<div id="wpbakery-mcp-server-auth-fields" class="wpbakery-uncode-mcp-kv" style="margin-top: 12px; <?php echo $has_server_basic_auth ? '' : 'display:none;'; ?>">
+						<label for="wpbakery-mcp-server-username"><?php esc_html_e( 'Server Username', 'wpbakery-uncode-mcp' ); ?></label>
+						<input id="wpbakery-mcp-server-username" type="text" value="<?php echo esc_attr( wp_unslash( $_SERVER['PHP_AUTH_USER'] ?? '' ) ); ?>" placeholder="Staging Username" />
+						
+						<label for="wpbakery-mcp-server-password"><?php esc_html_e( 'Server Password', 'wpbakery-uncode-mcp' ); ?></label>
+						<div class="wpbakery-uncode-mcp-password-row">
+							<input id="wpbakery-mcp-server-password" type="password" value="<?php echo esc_attr( wp_unslash( $_SERVER['PHP_AUTH_PW'] ?? '' ) ); ?>" placeholder="Staging Password" autocomplete="off" spellcheck="false" />
+							<button type="button" class="button" id="wpbakery-mcp-toggle-server-password" aria-controls="wpbakery-mcp-server-password" aria-pressed="false"><?php esc_html_e( 'Show', 'wpbakery-uncode-mcp' ); ?></button>
+						</div>
+					</div>
+
 					<div class="wpbakery-uncode-mcp-warning">
 						<strong><?php esc_html_e( 'Treat the generated config like a secret.', 'wpbakery-uncode-mcp' ); ?></strong>
 						<?php esc_html_e( 'Application Passwords grant direct access as your WordPress user. Do not share screenshots, paste configs into chat, or leave the credential visible after generation.', 'wpbakery-uncode-mcp' ); ?>
@@ -191,6 +220,15 @@ class WPBakery_Uncode_MCP_Admin {
 					const grid = document.getElementById('wpbakery-mcp-config-grid');
 					const passwordInput = document.getElementById('wpbakery-mcp-password');
 					const togglePasswordButton = document.getElementById('wpbakery-mcp-toggle-password');
+					const serverPasswordInput = document.getElementById('wpbakery-mcp-server-password');
+					const toggleServerPasswordButton = document.getElementById('wpbakery-mcp-toggle-server-password');
+					const useServerAuthCheckbox = document.getElementById('wpbakery-mcp-use-server-auth');
+					const serverAuthFields = document.getElementById('wpbakery-mcp-server-auth-fields');
+
+					useServerAuthCheckbox?.addEventListener('change', () => {
+						serverAuthFields.style.display = useServerAuthCheckbox.checked ? 'grid' : 'none';
+					});
+
 					const makeCard = (title, content) => {
 						const card = document.createElement('div');
 						card.className = 'card';
@@ -223,29 +261,50 @@ class WPBakery_Uncode_MCP_Admin {
 						togglePasswordButton.textContent = passwordInput.type === 'password' ? 'Show' : 'Hide';
 						togglePasswordButton.setAttribute('aria-pressed', passwordInput.type === 'text' ? 'true' : 'false');
 					});
+					toggleServerPasswordButton?.addEventListener('click', () => {
+						serverPasswordInput.type = serverPasswordInput.type === 'password' ? 'text' : 'password';
+						toggleServerPasswordButton.textContent = serverPasswordInput.type === 'password' ? 'Show' : 'Hide';
+						toggleServerPasswordButton.setAttribute('aria-pressed', serverPasswordInput.type === 'text' ? 'true' : 'false');
+					});
 					document.getElementById('wpbakery-mcp-generate').addEventListener('click', () => {
 						const username = (document.getElementById('wpbakery-mcp-username').value || '').trim();
 						const password = (passwordInput.value || '').trim();
 						if (!username || !password) { alert('Enter username and application password.'); return; }
 						const auth = btoa(`${username}:${password}`);
-						const claudeCommand = `claude mcp add --transport http wpbakery-uncode-mcp ${endpoint} --header "Authorization: Basic ${auth}"`;
+
+						const useServerAuth = useServerAuthCheckbox?.checked;
+						const serverUser = (document.getElementById('wpbakery-mcp-server-username')?.value || '').trim();
+						const serverPass = (serverPasswordInput?.value || '').trim();
+
+						let headers = { Authorization: `Basic ${auth}` };
+						let claudeCommand = `claude mcp add --transport http wpbakery-uncode-mcp ${endpoint} --header "Authorization: Basic ${auth}"`;
+						let proxyEnv = `WP_URL: "${window.location.origin}"\nWP_USERNAME: "${username}"\nWP_APP_PASSWORD: "${password}"`;
+
+						if (useServerAuth && serverUser && serverPass) {
+							const serverAuth = btoa(`${serverUser}:${serverPass}`);
+							headers = {
+								Authorization: `Basic ${serverAuth}`,
+								"X-WP-Authorization": `Basic ${auth}`
+							};
+							claudeCommand = `claude mcp add --transport http wpbakery-uncode-mcp ${endpoint} \\\n  --header "Authorization: Basic ${serverAuth}" \\\n  --header "X-WP-Authorization: Basic ${auth}"`;
+							proxyEnv += `\nWP_SERVER_USERNAME: "${serverUser}"\nWP_SERVER_PASSWORD: "${serverPass}"`;
+						}
+
 						const base = {
 							mcpServers: {
 								"wpbakery-uncode-mcp": {
 									type: "http",
 									url: endpoint,
-									headers: { Authorization: `Basic ${auth}` }
+									headers: headers
 								}
 							}
 						};
 						grid.innerHTML = '';
 						grid.appendChild(makeCard('Claude Code (`claude mcp add`)', claudeCommand));
-						grid.appendChild(makeCard('Claude Code (.mcp.json)', JSON.stringify(base, null, 2)));
-						grid.appendChild(makeCard('Codex (.mcp.json)', JSON.stringify(base, null, 2)));
-						grid.appendChild(makeCard('Cursor (.cursor/mcp.json)', JSON.stringify(base, null, 2)));
-						grid.appendChild(makeCard('Google Antigravity (mcp_config.json)', JSON.stringify({ mcpServers: {"wpbakery-uncode-mcp": { serverUrl: endpoint, headers: { Authorization: `Basic ${auth}` } } } }, null, 2)));
-						grid.appendChild(makeCard('Windsurf (mcp_config.json)', JSON.stringify({ mcpServers: {"wpbakery-uncode-mcp": { serverUrl: endpoint, headers: { Authorization: `Basic ${auth}` } } } }, null, 2)));
-						grid.appendChild(makeNoteCard('Claude Desktop', 'Remote Claude Desktop connectors may require authless or OAuth-compatible servers. This Basic Auth endpoint is better used with Claude Code, Codex, Cursor, or other clients that support custom headers.'));
+						grid.appendChild(makeCard('Claude Code / Codex / Cursor (.mcp.json / .cursor/mcp.json)', JSON.stringify(base, null, 2)));
+						grid.appendChild(makeCard('Google Antigravity / Windsurf (mcp_config.json)', JSON.stringify({ mcpServers: {"wpbakery-uncode-mcp": { serverUrl: endpoint, headers: headers } } }, null, 2)));
+						grid.appendChild(makeCard('Stdio Proxy Env Setup', proxyEnv));
+						grid.appendChild(makeNoteCard('Claude Desktop Note', 'Remote Claude Desktop connectors may require authless or OAuth-compatible servers. This Basic Auth endpoint is better used with Claude Code, Codex, Cursor, or other clients that support custom headers.'));
 						passwordInput.value = '';
 						passwordInput.type = 'password';
 						togglePasswordButton.textContent = 'Show';

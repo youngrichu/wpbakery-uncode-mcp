@@ -7,6 +7,8 @@ import { appendFileSync } from 'node:fs';
 const WP_URL = process.env.WP_URL?.replace(/\/+$/, '') || '';
 const WP_USERNAME = process.env.WP_USERNAME || '';
 const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
+const WP_SERVER_USERNAME = process.env.WP_SERVER_USERNAME || '';
+const WP_SERVER_PASSWORD = process.env.WP_SERVER_PASSWORD || '';
 const MCP_LOG_FILE = process.env.MCP_LOG_FILE || '';
 const MCP_PROTOCOL_VERSION = process.env.MCP_PROTOCOL_VERSION || '';
 const MCP_REST_PATH = '/mcp/wpbakery-uncode-mcp-server';
@@ -59,12 +61,20 @@ function doHttpRequest(options, payload) {
 async function detectPermalinks() {
   try {
     const isHttps = parsedWpUrl.protocol === 'https:';
+    const basePath = parsedWpUrl.pathname.replace(/\/+$/, '');
+    const headers = { Accept: 'application/json' };
+    
+    if (WP_SERVER_USERNAME && WP_SERVER_PASSWORD) {
+      const serverAuth = Buffer.from(`${WP_SERVER_USERNAME}:${WP_SERVER_PASSWORD}`).toString('base64');
+      headers['Authorization'] = `Basic ${serverAuth}`;
+    }
+
     const options = {
       hostname: parsedWpUrl.hostname,
       port: parsedWpUrl.port || (isHttps ? 443 : 80),
-      path: '/wp-json/',
+      path: `${basePath}/wp-json/`,
       method: 'HEAD',
-      headers: { Accept: 'application/json' },
+      headers,
     };
 
     if (isHttps && isLocalDev) {
@@ -79,11 +89,12 @@ async function detectPermalinks() {
 }
 
 function getMcpPath() {
+  const basePath = parsedWpUrl.pathname.replace(/\/+$/, '');
   if (usePrettyPermalinks) {
-    return `/wp-json${MCP_REST_PATH}`;
+    return `${basePath}/wp-json${MCP_REST_PATH}`;
   }
 
-  return `/?rest_route=${encodeURIComponent(MCP_REST_PATH)}`;
+  return `${basePath}/?rest_route=${encodeURIComponent(MCP_REST_PATH)}`;
 }
 
 async function sendToWordPress(message) {
@@ -92,12 +103,19 @@ async function sendToWordPress(message) {
     log(`Permalinks: ${usePrettyPermalinks ? 'pretty' : 'plain'}`);
   }
 
-  const auth = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
+  const wpAuth = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
-    Authorization: `Basic ${auth}`,
   };
+
+  if (WP_SERVER_USERNAME && WP_SERVER_PASSWORD) {
+    const serverAuth = Buffer.from(`${WP_SERVER_USERNAME}:${WP_SERVER_PASSWORD}`).toString('base64');
+    headers['Authorization'] = `Basic ${serverAuth}`;
+    headers['X-WP-Authorization'] = `Basic ${wpAuth}`;
+  } else {
+    headers['Authorization'] = `Basic ${wpAuth}`;
+  }
 
   if (sessionId) {
     headers['Mcp-Session-Id'] = sessionId;

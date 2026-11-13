@@ -62,6 +62,9 @@ class WPBakery_Uncode_MCP_Ability_Registrar {
 		$composer->register();
 		$this->ability_names = array_merge( $this->ability_names, $composer->get_ability_names() );
 
+		// Disabled tools are never registered, so they must not be exposed to the MCP server either.
+		$this->ability_names = array_filter( $this->ability_names, 'wpbakery_uncode_mcp_is_tool_enabled' );
+
 		$this->ability_names = apply_filters( 'wpbakery_uncode_mcp_ability_names', $this->ability_names );
 
 		return array_values( array_unique( $this->ability_names ) );
