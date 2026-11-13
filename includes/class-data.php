@@ -10,6 +10,34 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class WPBakery_Uncode_MCP_Data {
+
+	/** Uncode's theme option arrays; the only options the theme tools may touch. */
+	const UNCODE_OPTION_NAMES = array( 'uncode_theme_options', 'ot_options', 'uncode_options' );
+
+	/**
+	 * WPBakery's raw HTML/JS elements store base64 payloads that kses can't see,
+	 * so only users who may post unfiltered HTML can save them.
+	 *
+	 * @param string $content Incoming content.
+	 * @return true|WP_Error
+	 */
+	public static function check_raw_elements( string $content ) {
+		if ( current_user_can( 'unfiltered_html' ) ) {
+			return true;
+		}
+		if ( preg_match( '/\[\s*vc_raw_(html|js)\b/i', $content ) ) {
+			return new WP_Error( 'forbidden_raw_element', __( 'vc_raw_html and vc_raw_js require the unfiltered_html capability.', 'wpbakery-uncode-mcp' ) );
+		}
+		return true;
+	}
+
+	/**
+	 * Custom CSS is printed inside a <style> block, so a closing tag would let it
+	 * break out into HTML.
+	 */
+	private static function css_has_markup( string $css ): bool {
+		return false !== stripos( $css, '</style' ) || false !== stripos( $css, '<script' );
+	}
 	/**
 	 * @var WPBakery_Uncode_MCP_Content_Tree
 	 */
@@ -151,6 +179,19 @@ class WPBakery_Uncode_MCP_Data {
 			$post_type = 'page';
 		}
 
+		$type_object = get_post_type_object( $post_type );
+		if ( 'publish' === $status && $type_object && ! current_user_can( $type_object->cap->publish_posts ) ) {
+			$status = 'pending';
+		}
+		if ( 'private' === $status && $type_object && ! current_user_can( $type_object->cap->publish_posts ) ) {
+			$status = 'draft';
+		}
+
+		$raw_check = self::check_raw_elements( $content );
+		if ( is_wp_error( $raw_check ) ) {
+			return $raw_check;
+		}
+
 		$post_id = wp_insert_post(
 			array(
 				'post_title'   => $title,
@@ -188,6 +229,11 @@ class WPBakery_Uncode_MCP_Data {
 		$post = get_post( $post_id );
 		if ( ! $post ) {
 			return new WP_Error( 'invalid_post', __( 'Post not found.', 'wpbakery-uncode-mcp' ) );
+		}
+
+		$raw_check = self::check_raw_elements( $content );
+		if ( is_wp_error( $raw_check ) ) {
+			return $raw_check;
 		}
 
 		$incoming = wp_kses_post( $content );
@@ -341,12 +387,17 @@ class WPBakery_Uncode_MCP_Data {
 	 * @return string|WP_Error
 	 */
 	public function resolve_uncode_option_name( string $option_name = '' ) {
+		$candidates  = self::UNCODE_OPTION_NAMES;
 		$option_name = sanitize_key( $option_name );
 		if ( '' !== $option_name ) {
+			// Only Uncode's own option arrays. Anything else would let a caller read
+			// other plugins' secrets or write roles, cron or active_plugins.
+			if ( ! in_array( $option_name, $candidates, true ) ) {
+				return new WP_Error( 'invalid_option_name', __( 'option_name must be one of the Uncode theme option names.', 'wpbakery-uncode-mcp' ) );
+			}
 			return $option_name;
 		}
 
-		$candidates = array( 'uncode_theme_options', 'ot_options', 'uncode_options' );
 		foreach ( $candidates as $candidate ) {
 			$value = get_option( $candidate, null );
 			if ( is_array( $value ) ) {
@@ -454,6 +505,10 @@ class WPBakery_Uncode_MCP_Data {
 			if ( '' === $k || $this->is_sensitive_option_key( $k ) ) {
 				continue;
 			}
+			$guard = $this->guard_raw_theme_write( $k, $value );
+			if ( is_wp_error( $guard ) ) {
+				return $guard;
+			}
 			$safe_changes[ $k ] = $this->sanitize_meta_value( $value );
 		}
 
@@ -481,6 +536,12 @@ class WPBakery_Uncode_MCP_Data {
 	 * @return array|WP_Error
 	 */
 	public function update_theme_css_js( string $css = '', string $js = '', bool $append = false, string $option_name = '' ) {
+		if ( '' !== $js && ! current_user_can( 'unfiltered_html' ) ) {
+			return new WP_Error( 'forbidden_js', __( 'Saving custom JS requires the unfiltered_html capability.', 'wpbakery-uncode-mcp' ) );
+		}
+		if ( self::css_has_markup( $css ) ) {
+			return new WP_Error( 'invalid_css', __( 'CSS must not contain HTML tags.', 'wpbakery-uncode-mcp' ) );
+		}
 		$resolved = $this->resolve_uncode_option_name( $option_name );
 		if ( is_wp_error( $resolved ) ) {
 			return $resolved;
@@ -624,6 +685,10 @@ class WPBakery_Uncode_MCP_Data {
 		if ( '' === trim( $path ) ) {
 			return new WP_Error( 'missing_path', __( 'path is required.', 'wpbakery-uncode-mcp' ) );
 		}
+		$guard = $this->guard_raw_theme_write( $path, $value );
+		if ( is_wp_error( $guard ) ) {
+			return $guard;
+		}
 
 		$current = get_option( $resolved, array() );
 		if ( ! is_array( $current ) ) {
@@ -669,6 +734,9 @@ class WPBakery_Uncode_MCP_Data {
 		}
 		if ( '' === trim( $css ) ) {
 			return new WP_Error( 'missing_css', __( 'css is required.', 'wpbakery-uncode-mcp' ) );
+		}
+		if ( self::css_has_markup( $css ) || self::css_has_markup( $label ) ) {
+			return new WP_Error( 'invalid_css', __( 'CSS must not contain HTML tags.', 'wpbakery-uncode-mcp' ) );
 		}
 
 		$resolved = $this->resolve_uncode_option_name( $option_name );
@@ -1418,6 +1486,9 @@ class WPBakery_Uncode_MCP_Data {
 			);
 		}
 
+		if ( isset( $settings['custom_css'] ) && self::css_has_markup( (string) $settings['custom_css'] ) ) {
+			return new WP_Error( 'invalid_css', __( 'CSS must not contain HTML tags.', 'wpbakery-uncode-mcp' ) );
+		}
 		if ( isset( $settings['custom_css'] ) ) {
 			$existing = isset( $next['uncode_custom_css'] ) ? (string) $next['uncode_custom_css'] : '';
 			$label    = 'brand_setup';
@@ -2057,6 +2128,13 @@ class WPBakery_Uncode_MCP_Data {
 			$current = array();
 		}
 
+		foreach ( $candidates as $candidate ) {
+			$guard = $this->guard_raw_theme_write( (string) $candidate, $value );
+			if ( is_wp_error( $guard ) ) {
+				return $guard;
+			}
+		}
+
 		$updated_path = $this->set_first_matching_candidate_path( $current, $candidates, $value );
 		update_option( $resolved, $current );
 
@@ -2198,8 +2276,8 @@ class WPBakery_Uncode_MCP_Data {
 			return new WP_Error( 'option_name_mismatch', __( 'Provided option_name does not match snapshot.', 'wpbakery-uncode-mcp' ) );
 		}
 
-		if ( '' === $target_option ) {
-			return new WP_Error( 'invalid_snapshot', __( 'Snapshot option name is missing.', 'wpbakery-uncode-mcp' ) );
+		if ( '' === $target_option || ! in_array( $target_option, self::UNCODE_OPTION_NAMES, true ) ) {
+			return new WP_Error( 'invalid_snapshot', __( 'Snapshot option name is missing or not an Uncode option.', 'wpbakery-uncode-mcp' ) );
 		}
 
 		update_option( $target_option, $snapshot['data'] );
@@ -2254,6 +2332,24 @@ class WPBakery_Uncode_MCP_Data {
 	 * @param string $key Option key.
 	 * @return bool
 	 */
+	/**
+	 * Theme options that hold script or CSS are printed raw on every page, so
+	 * writing them must follow the same rules as update_theme_css_js().
+	 *
+	 * @param string $key   Option key or dot path.
+	 * @param mixed  $value Value to write.
+	 * @return true|WP_Error
+	 */
+	private function guard_raw_theme_write( string $key, $value ) {
+		if ( preg_match( '/(^|[._])(custom_)?(js|javascript|script|scripts)($|[._])|custom_js|_js$/i', $key ) && ! current_user_can( 'unfiltered_html' ) ) {
+			return new WP_Error( 'forbidden_js', __( 'Saving custom JS requires the unfiltered_html capability.', 'wpbakery-uncode-mcp' ) );
+		}
+		if ( is_string( $value ) && self::css_has_markup( $value ) && ! current_user_can( 'unfiltered_html' ) ) {
+			return new WP_Error( 'invalid_css', __( 'Theme option values must not contain style or script tags.', 'wpbakery-uncode-mcp' ) );
+		}
+		return true;
+	}
+
 	private function is_sensitive_option_key( string $key ): bool {
 		return (bool) preg_match( '/(token|secret|password|apikey|api_key|license|purchase)/i', $key );
 	}

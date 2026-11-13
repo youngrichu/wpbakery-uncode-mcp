@@ -17,9 +17,18 @@ if (!WP_URL || !WP_USERNAME || !WP_APP_PASSWORD) {
 }
 
 const parsedWpUrl = new URL(WP_URL);
-const isLocalDev = /\.(test|local|localhost|dev|invalid)$/.test(parsedWpUrl.hostname)
+// .dev is a real public TLD, so it is not treated as local. Self-signed
+// certificates are only accepted for reserved local names, or when
+// WP_INSECURE_TLS=1 is set explicitly.
+const isLocalDev = /\.(test|local|localhost|invalid)$/.test(parsedWpUrl.hostname)
   || parsedWpUrl.hostname === 'localhost'
   || parsedWpUrl.hostname === '127.0.0.1';
+const allowInsecureTls = isLocalDev || process.env.WP_INSECURE_TLS === '1';
+
+if (parsedWpUrl.protocol === 'http:' && !isLocalDev) {
+  process.stderr.write('Refusing to send credentials over plain http to a non-local host. Use https.\n');
+  process.exit(1);
+}
 
 let sessionId = null;
 let usePrettyPermalinks = null;
@@ -39,7 +48,7 @@ function doHttpRequest(options, payload) {
     const isHttps = parsedWpUrl.protocol === 'https:';
     const doRequest = isHttps ? httpsRequest : httpRequest;
 
-    if (isHttps && isLocalDev) {
+    if (isHttps && allowInsecureTls) {
       options.rejectUnauthorized = false;
     }
 
@@ -67,7 +76,7 @@ async function detectPermalinks() {
       headers: { Accept: 'application/json' },
     };
 
-    if (isHttps && isLocalDev) {
+    if (isHttps && allowInsecureTls) {
       options.rejectUnauthorized = false;
     }
 
