@@ -127,6 +127,17 @@ class WPBakery_Uncode_MCP_Data {
 		if ( ! $result['ok'] ) {
 			return new WP_Error( $result['code'], $result['message'] );
 		}
+		if ( ! current_user_can( 'unfiltered_html' ) ) {
+			// Existing raw blocks (placed by a trusted user) may stay; new ones may not.
+			$raw_pattern = '/\[\s*vc_raw_(html|js)\b.*?\[\/\s*vc_raw_\1\s*\]/is';
+			preg_match_all( $raw_pattern, (string) $post->post_content, $before );
+			preg_match_all( $raw_pattern, (string) $result['content'], $after );
+			$open_pattern = '/\[\s*vc_raw_(html|js)\b/i';
+			if ( array_diff( $after[0], $before[0] )
+				|| preg_match_all( $open_pattern, (string) $result['content'] ) > preg_match_all( $open_pattern, (string) $post->post_content ) ) {
+				return new WP_Error( 'forbidden_raw_element', __( 'vc_raw_html and vc_raw_js require the unfiltered_html capability.', 'wpbakery-uncode-mcp' ) );
+			}
+		}
 		if ( ! $dry_run ) {
 			$stored = wpbakery_uncode_mcp_content_for_storage(
 				$result['content'],
