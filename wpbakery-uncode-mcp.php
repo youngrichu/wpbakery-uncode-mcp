@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       MCP Tools for WPBakery + Uncode
  * Description:       Extends the WordPress MCP Adapter to expose WPBakery and Uncode editing actions as MCP tools for AI agents.
- * Version:           0.1.1
+ * Version:           0.2.1
  * Requires at least: 6.9
  * Tested up to:      6.9
  * Requires PHP:      8.0
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPBAKERY_UNCODE_MCP_VERSION', '0.1.1' );
+define( 'WPBAKERY_UNCODE_MCP_VERSION', '0.2.1' );
 define( 'WPBAKERY_UNCODE_MCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPBAKERY_UNCODE_MCP_URL', plugin_dir_url( __FILE__ ) );
 define( 'WPBAKERY_UNCODE_MCP_BASENAME', plugin_basename( __FILE__ ) );
@@ -177,7 +177,8 @@ function wpbakery_uncode_mcp_is_uncode_active(): bool {
 	$name        = strtolower( (string) $theme->get( 'Name' ) );
 	$template    = strtolower( (string) $theme->get_template() );
 	$stylesheet  = strtolower( (string) $theme->get_stylesheet() );
-	$parent_name = strtolower( (string) $theme->parent()->get( 'Name' ) );
+	$parent      = $theme->parent();
+	$parent_name = $parent ? strtolower( (string) $parent->get( 'Name' ) ) : '';
 
 	$targets = array( $name, $template, $stylesheet, $parent_name );
 	foreach ( $targets as $candidate ) {
@@ -276,3 +277,34 @@ function wpbakery_uncode_mcp_debug_shortcode_output( $output, $shortcode, $atts 
 	return "<!-- mcp-wpbakery-debug " . esc_html( wp_json_encode( $meta ) ) . " -->\n" . $output;
 }
 add_filter( 'vc_shortcode_output', 'wpbakery_uncode_mcp_debug_shortcode_output', 99, 3 );
+
+/**
+ * Map custom HTTP headers to standard HTTP_AUTHORIZATION for WordPress Application Passwords compatibility
+ * under server-level HTTP Basic Auth (like WP Engine staging environment password protection).
+ */
+function wpbakery_uncode_mcp_map_custom_auth_headers(): void {
+	// Only for this plugin's MCP endpoint, so the second header can't be used to
+	// get around WAF or security-plugin rules on other REST routes or xmlrpc.php,
+	// and other plugins' Basic auth is never overwritten.
+	$uri = isset( $_SERVER['REQUEST_URI'] ) ? rawurldecode( (string) $_SERVER['REQUEST_URI'] ) : '';
+	if ( false === strpos( $uri, '/mcp/wpbakery-uncode-mcp-server' ) ) {
+		return;
+	}
+
+	$custom_auth = ! empty( $_SERVER['HTTP_X_WP_AUTHORIZATION'] ) ? (string) $_SERVER['HTTP_X_WP_AUTHORIZATION'] : '';
+
+	if ( '' !== $custom_auth ) {
+		$_SERVER['HTTP_AUTHORIZATION'] = $custom_auth;
+
+		// Also populate PHP_AUTH_USER and PHP_AUTH_PW if it is Basic Auth
+		if ( 0 === strpos( strtolower( $custom_auth ), 'basic ' ) ) {
+			$credentials = base64_decode( substr( $custom_auth, 6 ) );
+			if ( false !== $credentials && strpos( $credentials, ':' ) !== false ) {
+				list( $user, $pw ) = explode( ':', $credentials, 2 );
+				$_SERVER['PHP_AUTH_USER'] = $user;
+				$_SERVER['PHP_AUTH_PW']   = $pw;
+			}
+		}
+	}
+}
+add_action( 'plugins_loaded', 'wpbakery_uncode_mcp_map_custom_auth_headers', 5 );

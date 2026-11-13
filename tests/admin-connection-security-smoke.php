@@ -107,6 +107,25 @@ if ( ! function_exists( 'sanitize_key' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_unslash' ) ) {
+	function wp_unslash( $value ) {
+		return is_string( $value ) ? stripslashes( $value ) : $value;
+	}
+}
+
+if ( ! function_exists( 'checked' ) ) {
+	function checked( $checked, $current = true, $display = true ) {
+		$result = '';
+		if ( (string) $checked === (string) $current ) {
+			$result = " checked='checked'";
+		}
+		if ( $display ) {
+			echo $result;
+		}
+		return $result;
+	}
+}
+
 require_once __DIR__ . '/../includes/admin/class-admin.php';
 
 $_GET['tab'] = 'connection';
