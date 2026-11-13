@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       MCP Tools for WPBakery + Uncode
  * Description:       Extends the WordPress MCP Adapter to expose WPBakery and Uncode editing actions as MCP tools for AI agents.
- * Version:           0.1.0
+ * Version:           0.1.1
  * Requires at least: 6.9
  * Tested up to:      6.9
  * Requires PHP:      8.0
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPBAKERY_UNCODE_MCP_VERSION', '0.1.0' );
+define( 'WPBAKERY_UNCODE_MCP_VERSION', '0.1.1' );
 define( 'WPBAKERY_UNCODE_MCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPBAKERY_UNCODE_MCP_URL', plugin_dir_url( __FILE__ ) );
 define( 'WPBAKERY_UNCODE_MCP_BASENAME', plugin_basename( __FILE__ ) );
