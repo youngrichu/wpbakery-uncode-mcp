@@ -195,11 +195,11 @@ class WPBakery_Uncode_MCP_Admin {
 
 					<div id="wpbakery-mcp-server-auth-fields" class="wpbakery-uncode-mcp-kv" style="margin-top: 12px; <?php echo $has_server_basic_auth ? '' : 'display:none;'; ?>">
 						<label for="wpbakery-mcp-server-username"><?php esc_html_e( 'Server Username', 'wpbakery-uncode-mcp' ); ?></label>
-						<input id="wpbakery-mcp-server-username" type="text" value="<?php echo esc_attr( wp_unslash( $_SERVER['PHP_AUTH_USER'] ?? '' ) ); ?>" placeholder="Staging Username" />
+						<input id="wpbakery-mcp-server-username" type="text" placeholder="Staging Username" />
 						
 						<label for="wpbakery-mcp-server-password"><?php esc_html_e( 'Server Password', 'wpbakery-uncode-mcp' ); ?></label>
 						<div class="wpbakery-uncode-mcp-password-row">
-							<input id="wpbakery-mcp-server-password" type="password" value="<?php echo esc_attr( wp_unslash( $_SERVER['PHP_AUTH_PW'] ?? '' ) ); ?>" placeholder="Staging Password" autocomplete="off" spellcheck="false" />
+							<input id="wpbakery-mcp-server-password" type="password" placeholder="Staging Password" autocomplete="off" spellcheck="false" />
 							<button type="button" class="button" id="wpbakery-mcp-toggle-server-password" aria-controls="wpbakery-mcp-server-password" aria-pressed="false"><?php esc_html_e( 'Show', 'wpbakery-uncode-mcp' ); ?></button>
 						</div>
 					</div>

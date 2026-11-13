@@ -283,14 +283,17 @@ add_filter( 'vc_shortcode_output', 'wpbakery_uncode_mcp_debug_shortcode_output',
  * under server-level HTTP Basic Auth (like WP Engine staging environment password protection).
  */
 function wpbakery_uncode_mcp_map_custom_auth_headers(): void {
-	$custom_auth = '';
-	if ( ! empty( $_SERVER['HTTP_X_WP_AUTHORIZATION'] ) ) {
-		$custom_auth = $_SERVER['HTTP_X_WP_AUTHORIZATION'];
-	} elseif ( ! empty( $_SERVER['HTTP_X_WP_APP_AUTH'] ) ) {
-		$custom_auth = $_SERVER['HTTP_X_WP_APP_AUTH'];
+	// Only for this plugin's MCP endpoint, so the second header can't be used to
+	// get around WAF or security-plugin rules on other REST routes or xmlrpc.php,
+	// and other plugins' Basic auth is never overwritten.
+	$uri = isset( $_SERVER['REQUEST_URI'] ) ? rawurldecode( (string) $_SERVER['REQUEST_URI'] ) : '';
+	if ( false === strpos( $uri, '/mcp/wpbakery-uncode-mcp-server' ) ) {
+		return;
 	}
 
-	if ( ! empty( $custom_auth ) ) {
+	$custom_auth = ! empty( $_SERVER['HTTP_X_WP_AUTHORIZATION'] ) ? (string) $_SERVER['HTTP_X_WP_AUTHORIZATION'] : '';
+
+	if ( '' !== $custom_auth ) {
 		$_SERVER['HTTP_AUTHORIZATION'] = $custom_auth;
 
 		// Also populate PHP_AUTH_USER and PHP_AUTH_PW if it is Basic Auth
@@ -305,9 +308,3 @@ function wpbakery_uncode_mcp_map_custom_auth_headers(): void {
 	}
 }
 add_action( 'plugins_loaded', 'wpbakery_uncode_mcp_map_custom_auth_headers', 5 );
-
-/**
- * Force enable Application Passwords support even if server-level HTTP Basic Auth is active.
- */
-add_filter( 'wp_is_application_passwords_supported', '__return_true', 99 );
-add_filter( 'wp_is_application_passwords_available', '__return_true', 99 );
